@@ -166,29 +166,22 @@ def init_func_preproc_wf(bold_file):
         'Memory resampled/largemem=%.2f/%.2f GB.',
         ref_file, mem_gb['filesize'], bold_tlen, mem_gb['resampled'], mem_gb['largemem'])
 
-    sbref_file = None
     # Find associated sbref, if possible
     entities = layout.parse_file_entities(ref_file)
+    if multiecho:
+        # Remove echo entity to collect all echoes
+        _ = entities.pop('echo', None)
     entities['suffix'] = 'sbref'
     entities['extension'] = ['nii', 'nii.gz']  # Overwrite extensions
-    files = layout.get(return_type='file', **entities)
+
+    sbref_files = layout.get(return_type='file', **entities)
     refbase = os.path.basename(ref_file)
     if 'sbref' in config.workflow.ignore:
         config.loggers.workflow.info("Single-band reference files ignored.")
-    elif files and multiecho:
-        config.loggers.workflow.warning(
-            "Single-band reference found, but not supported in "
-            "multi-echo workflows at this time. Ignoring.")
-    elif files:
-        sbref_file = files[0]
-        sbbase = os.path.basename(sbref_file)
-        if len(files) > 1:
-            config.loggers.workflow.warning(
-                "Multiple single-band reference files found for {}; using "
-                "{}".format(refbase, sbbase))
-        else:
-            config.loggers.workflow.info("Using single-band reference file %s.",
-                                         sbbase)
+    elif sbref_files:
+        sbbase = ','.join([os.path.basename(sbf) for sbf in sbref_files])
+        config.loggers.workflow.info("Using single-band reference file(s) %s.",
+                                     sbbase)
     else:
         config.loggers.workflow.info("No single-band-reference found for %s.",
                                      refbase)
@@ -234,9 +227,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 't1w2fsnative_xfm', 'fsnative2t1w_xfm']),
         name='inputnode')
     inputnode.inputs.bold_file = bold_file
-    if sbref_file is not None:
+    if sbref_files is not None:
         from niworkflows.interfaces.images import ValidateImage
-        val_sbref = pe.Node(ValidateImage(in_file=sbref_file), name='val_sbref')
+        val_sbref = pe.MapNode(ValidateImage(), name='val_sbref',
+                               iterfield=['in_file'])
+        val_sbref.inputs.in_file = sbref_files
 
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_t1', 'bold_t1_ref', 'bold_mask_t1', 'bold_aseg_t1', 'bold_aparc_t1',
@@ -298,7 +293,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     # Generate a tentative boldref
     bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads)
     bold_reference_wf.inputs.inputnode.dummy_scans = config.workflow.dummy_scans
-    if sbref_file is not None:
+    if sbref_files is not None:
         workflow.connect([
             (val_sbref, bold_reference_wf, [('out_file', 'inputnode.sbref_file')]),
         ])
