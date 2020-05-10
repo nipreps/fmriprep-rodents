@@ -227,11 +227,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 't1w2fsnative_xfm', 'fsnative2t1w_xfm']),
         name='inputnode')
     inputnode.inputs.bold_file = bold_file
-    if sbref_files is not None:
-        from niworkflows.interfaces.images import ValidateImage
-        val_sbref = pe.MapNode(ValidateImage(), name='val_sbref',
-                               iterfield=['in_file'])
-        val_sbref.inputs.in_file = sbref_files
 
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_t1', 'bold_t1_ref', 'bold_mask_t1', 'bold_aseg_t1', 'bold_aparc_t1',
@@ -294,6 +289,10 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads)
     bold_reference_wf.inputs.inputnode.dummy_scans = config.workflow.dummy_scans
     if sbref_files is not None:
+        from niworkflows.interfaces.images import ValidateImage
+        val_sbref = pe.MapNode(ValidateImage(), name='val_sbref',
+                               iterfield=['in_file'])
+        val_sbref.inputs.in_file = sbref_files
         workflow.connect([
             (val_sbref, bold_reference_wf, [('out_file', 'inputnode.sbref_file')]),
         ])
