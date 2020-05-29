@@ -392,10 +392,13 @@ jobs:
       - run:
           name: Setting up test
           command: |
+            export PY3=$(pyenv versions | grep '3\.' |
+                         sed -e 's/.* 3\./3./' -e 's/ .*//')
+            pyenv local $PY3
             mkdir -p /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade "pip<21" "setuptools<45"
+            pip install --upgrade pip setuptools
             pip install --upgrade /tmp/src/fmriprep/wrapper/
       - run:
           name: Run anatomical workflow on ds005
@@ -569,10 +572,13 @@ jobs:
       - run:
           name: Setting up test
           command: |
+            export PY3=$(pyenv versions | grep '3\.' |
+                         sed -e 's/.* 3\./3./' -e 's/ .*//')
+            pyenv local $PY3
             mkdir -p /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade "pip<21" "setuptools<45"
+            pip install --upgrade pip setuptools
             pip install --upgrade /tmp/src/fmriprep/wrapper/
       - run:
           name: Set-up a Docker registry
@@ -724,8 +730,11 @@ jobs:
       - run:
           name: Setting up test
           command: |
+            export PY3=$(pyenv versions | grep '3\.' |
+                         sed -e 's/.* 3\./3./' -e 's/ .*//')
+            pyenv local $PY3
             mkdir -p /tmp/${DATASET}/derivatives && sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade "pip<21" "setuptools<45"
+            pip install --upgrade pip setuptools
             pip install --upgrade /tmp/src/fmriprep/wrapper/
       - run:
           name: Set-up a Docker registry
