@@ -150,6 +150,7 @@ def _build_parser():
         "--nthreads",
         "--n_cpus",
         "--n-cpus",
+        dest='nprocs',
         action="store",
         type=PositiveInt,
         help="maximum number of threads across all processes",
