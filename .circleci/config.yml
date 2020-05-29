@@ -276,7 +276,7 @@ jobs:
             pyenv local $PY2
             echo -n "Python version: "
             python --version
-            pip install --upgrade pip setuptools
+            pip install --upgrade "pip<21" "setuptools<45"
             pip install --upgrade wrapper/
             which fmriprep-docker
             fmriprep-docker -i poldracklab/fmriprep:latest --help
@@ -395,7 +395,7 @@ jobs:
             mkdir -p /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
+            pip install --upgrade "pip<21" "setuptools<45"
             pip install --upgrade /tmp/src/fmriprep/wrapper/
       - run:
           name: Run anatomical workflow on ds005
@@ -572,7 +572,7 @@ jobs:
             mkdir -p /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
+            pip install --upgrade "pip<21" "setuptools<45"
             pip install --upgrade /tmp/src/fmriprep/wrapper/
       - run:
           name: Set-up a Docker registry
@@ -725,7 +725,7 @@ jobs:
           name: Setting up test
           command: |
             mkdir -p /tmp/${DATASET}/derivatives && sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
+            pip install --upgrade "pip<21" "setuptools<45"
             pip install --upgrade /tmp/src/fmriprep/wrapper/
       - run:
           name: Set-up a Docker registry
