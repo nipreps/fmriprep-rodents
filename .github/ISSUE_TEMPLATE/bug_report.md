@@ -14,7 +14,7 @@ assignees: ''
 
 ### What is the exact command-line you used?
 ```
-<replace your command line here>
+<place your command line here>
 ```
 
 ### Have you checked that your inputs are BIDS valid?
