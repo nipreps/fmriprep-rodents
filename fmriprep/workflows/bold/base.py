@@ -531,13 +531,16 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ])
 
         # Overwrite ``out_path_base`` of unwarping DataSinks
+        # And ensure echo is dropped from report
         for node in fmap_unwarp_report_wf.list_node_names():
             if node.split('.')[-1].startswith('ds_'):
                 fmap_unwarp_report_wf.get_node(node).interface.out_path_base = 'fmriprep'
+                fmap_unwarp_report_wf.get_node(node).inputs.dismiss_entities = ("echo",)
 
         for node in bold_sdc_wf.list_node_names():
             if node.split('.')[-1].startswith('ds_'):
                 bold_sdc_wf.get_node(node).interface.out_path_base = 'fmriprep'
+                bold_sdc_wf.get_node(node).inputs.dismiss_entities = ("echo",)
 
         if 'syn' in fmaps:
             sdc_select_std = pe.Node(
@@ -565,9 +568,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ])
 
             # Overwrite ``out_path_base`` of unwarping DataSinks
+            # And ensure echo is dropped from report
             for node in syn_unwarp_report_wf.list_node_names():
                 if node.split('.')[-1].startswith('ds_'):
                     syn_unwarp_report_wf.get_node(node).interface.out_path_base = 'fmriprep'
+                    syn_unwarp_report_wf.get_node(node).inputs.dismiss_entities = ("echo",)
 
     # Map final BOLD mask into T1w space (if required)
     nonstd_spaces = set(spaces.get_nonstandard())
