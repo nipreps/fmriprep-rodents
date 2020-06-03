@@ -91,7 +91,6 @@ finally:
     from templateflow import __version__ as _tf_ver
     from . import __version__
 
-
 if not hasattr(sys, "_is_pytest_session"):
     sys._is_pytest_session = False  # Trick to avoid sklearn's FutureWarnings
 # Disable all warnings in main and children processes only on production versions
@@ -117,9 +116,11 @@ DEFAULT_MEMORY_MIN_GB = 0.01
 # Ping NiPype eTelemetry once if env var was not set
 # workers on the pool will have the env variable set from the master process
 if _nipype_et is None:
-    # check for latest version
-    from nipype import check_latest_version
-    check_latest_version()
+    # Just get so analytics track one hit
+    from contextlib import suppress
+    from requests import get as _get_url, ConnectionError, ReadTimeout
+    with suppress((ConnectionError, ReadTimeout)):
+        _get_url("https://rig.mit.edu/et/projects/nipy/nipype", timeout=0.05)
 
 # Execution environment
 _exec_env = os.name
