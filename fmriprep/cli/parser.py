@@ -551,7 +551,6 @@ def parse_args(args=None, namespace=None):
     """Parse args and run further checks on the command line."""
     import logging
     from niworkflows.utils.spaces import Reference, SpatialReferences
-    from niworkflows.utils.misc import check_valid_fs_license
 
     parser = _build_parser()
     opts = parser.parse_args(args, namespace)
@@ -566,15 +565,6 @@ def parse_args(args=None, namespace=None):
 
     # Retrieve logging level
     build_log = config.loggers.cli
-
-    if not check_valid_fs_license(lic=config.execution.fs_license_file):
-        raise RuntimeError(
-            """\
-ERROR: a valid license file is required for FreeSurfer to run. fMRIPrep looked for an existing \
-license file at several paths, in this order: 1) command line argument ``--fs-license-file``; \
-2) ``$FS_LICENSE`` environment variable; and 3) the ``$FREESURFER_HOME/license.txt`` path. Get it \
-(for free) by registering at https://surfer.nmr.mgh.harvard.edu/registration.html"""
-        )
 
     # Load base plugin_settings from file if --use-plugin
     if opts.use_plugin is not None:

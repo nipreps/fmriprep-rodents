@@ -13,6 +13,7 @@ a hard-limited memory-scope.
 def build_workflow(config_file, retval):
     """Create the Nipype Workflow that supports the whole execution graph."""
     from niworkflows.utils.bids import collect_participants, check_pipeline_version
+    from niworkflows.utils.misc import check_valid_fs_license
     from niworkflows.reports import generate_reports
     from .. import config
     from ..utils.misc import check_deps
@@ -81,6 +82,16 @@ def build_workflow(config_file, retval):
     build_log.log(25, init_msg)
 
     retval["workflow"] = init_fmriprep_wf()
+
+    # Check for FS license after building the workflow
+    if not check_valid_fs_license():
+        build_log.critical("""\
+ERROR: a valid license file is required for FreeSurfer to run. fMRIPrep looked for an existing \
+license file at several paths, in this order: 1) command line argument ``--fs-license-file``; \
+2) ``$FS_LICENSE`` environment variable; and 3) the ``$FREESURFER_HOME/license.txt`` path. Get it \
+(for free) by registering at https://surfer.nmr.mgh.harvard.edu/registration.html""")
+        retval["return_code"] = 126  # 126 == Command invoked cannot execute.
+        return retval
 
     # Check workflow for missing commands
     missing = check_deps(retval["workflow"])

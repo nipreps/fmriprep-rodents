@@ -122,8 +122,11 @@ if os.getenv('IS_DOCKER_8395080871'):
     del _cgroup
 
 _fs_license = os.getenv('FS_LICENSE')
-if _fs_license is None and os.getenv('FREESURFER_HOME'):
-    _fs_license = os.path.join(os.getenv('FREESURFER_HOME'), 'license.txt')
+if not _fs_license and os.getenv('FREESURFER_HOME'):
+    _fs_home = os.getenv('FREESURFER_HOME')
+    if _fs_home and (Path(_fs_home) / "license.txt").exists():
+        _fs_license = str(Path(_fs_home) / "license.txt")
+    del _fs_home
 
 _templateflow_home = Path(os.getenv(
     'TEMPLATEFLOW_HOME',
@@ -377,6 +380,9 @@ class execution(_Config):
     @classmethod
     def init(cls):
         """Create a new BIDS Layout accessible with :attr:`~execution.layout`."""
+        if cls.fs_license_file is not None:
+            os.environ["FS_LICENSE"] = str(cls.fs_license_file)
+
         if cls._layout is None:
             import re
             from bids.layout import BIDSLayout
