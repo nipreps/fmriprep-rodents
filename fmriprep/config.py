@@ -247,6 +247,8 @@ class nipype(_Config):
 
     crashfile_format = 'txt'
     """The file format for crashfiles, either text or pickle."""
+    disable_telemetry = bool(os.getenv("NIPYPE_NO_ET") is None)
+    """Disable interface telemetry"""
     get_linked_libs = False
     """Run NiPype's tool to enlist linked libraries for every interface."""
     memory_gb = None
@@ -296,6 +298,12 @@ class nipype(_Config):
             })
             ncfg.enable_resource_monitor()
 
+        if not cls.disable_telemetry:
+            # check for latest version
+            from nipype import check_latest_version
+            check_latest_version()
+            os.environ["NIPYPE_NO_ET"] = "1"
+
         # Nipype config (logs and execution)
         ncfg.update_config({
             'execution': {
@@ -303,6 +311,7 @@ class nipype(_Config):
                 'crashfile_format': cls.crashfile_format,
                 'get_linked_libs': cls.get_linked_libs,
                 'stop_on_first_crash': cls.stop_on_first_crash,
+                'check_version': False,  # disable future telemetry
             }
         })
 
