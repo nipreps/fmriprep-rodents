@@ -124,7 +124,7 @@ if os.getenv('IS_DOCKER_8395080871'):
 _fs_license = os.getenv('FS_LICENSE')
 if not _fs_license and os.getenv('FREESURFER_HOME'):
     _fs_home = os.getenv('FREESURFER_HOME')
-    if _fs_home and (Path(_fs_home) / "license.txt").exists():
+    if _fs_home and (Path(_fs_home) / "license.txt").is_file():
         _fs_license = str(Path(_fs_home) / "license.txt")
     del _fs_home
 
@@ -380,7 +380,7 @@ class execution(_Config):
     @classmethod
     def init(cls):
         """Create a new BIDS Layout accessible with :attr:`~execution.layout`."""
-        if cls.fs_license_file is not None:
+        if cls.fs_license_file and Path(cls.fs_license_file).is_file():
             os.environ["FS_LICENSE"] = str(cls.fs_license_file)
 
         if cls._layout is None:

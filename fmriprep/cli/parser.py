@@ -23,6 +23,13 @@ def _build_parser():
             raise parser.error(f"Path does not exist: <{path}>.")
         return Path(path).absolute()
 
+    def _is_file(path, parser):
+        """Ensure a given path exists and it is a file."""
+        path = _path_exists(path, parser)
+        if not path.is_file():
+            raise parser.error(f"Path should point to a file (or symlink of file): <{path}>.")
+        return path
+
     def _min_one(value, parser):
         """Ensure an argument is not lower than 1."""
         value = int(value)
@@ -63,6 +70,7 @@ def _build_parser():
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     PathExists = partial(_path_exists, parser=parser)
+    IsFile = partial(_is_file, parser=parser)
     PositiveInt = partial(_min_one, parser=parser)
 
     # Arguments as specified by BIDS-Apps
@@ -128,7 +136,7 @@ def _build_parser():
         dest="bids_filters",
         action="store",
         type=_bids_filter,
-        metavar="PATH",
+        metavar="FILE",
         help="a JSON file describing custom BIDS input filters using PyBIDS. "
         "For further details, please check out "
         "https://fmriprep.readthedocs.io/en/%s/faq.html#"
@@ -178,8 +186,10 @@ def _build_parser():
     )
     g_perfm.add_argument(
         "--use-plugin",
+        "--nipype-plugin-file",
         action="store",
-        default=None,
+        metavar="FILE",
+        type=IsFile,
         help="nipype plugin configuration file",
     )
     g_perfm.add_argument(
@@ -414,8 +424,8 @@ https://fmriprep.readthedocs.io/en/%s/spaces.html"""
     g_fs = parser.add_argument_group("Specific options for FreeSurfer preprocessing")
     g_fs.add_argument(
         "--fs-license-file",
-        metavar="PATH",
-        type=PathExists,
+        metavar="FILE",
+        type=IsFile,
         help="Path to FreeSurfer license key file. Get it (for free) by registering"
         " at https://surfer.nmr.mgh.harvard.edu/registration.html",
     )
