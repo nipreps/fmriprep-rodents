@@ -67,8 +67,12 @@ The :py:mod:`config` is responsible for other conveniency actions.
     :py:class:`~bids.layout.BIDSLayout`, etc.)
 
 """
+import os
 from multiprocessing import set_start_method
 
+# Disable NiPype etelemetry always
+_nipype_et = os.getenv("NIPYPE_NO_ET")
+os.environ["NIPYPE_NO_ET"] = "1"
 
 try:
     set_start_method('forkserver')
@@ -77,7 +81,6 @@ except RuntimeError:
 finally:
     # Defer all custom import for after initializing the forkserver and
     # ignoring the most annoying warnings
-    import os
     import sys
     import random
 
@@ -87,6 +90,7 @@ finally:
     from nipype import logging as nlogging, __version__ as _nipype_ver
     from templateflow import __version__ as _tf_ver
     from . import __version__
+
 
 if not hasattr(sys, "_is_pytest_session"):
     sys._is_pytest_session = False  # Trick to avoid sklearn's FutureWarnings
@@ -110,6 +114,14 @@ logging.addLevelName(15, 'VERBOSE')  # Add a new level between INFO and DEBUG
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
+# Ping NiPype eTelemetry once if env var was not set
+# workers on the pool will have the env variable set from the master process
+if _nipype_et is None:
+    # check for latest version
+    from nipype import check_latest_version
+    check_latest_version()
+
+# Execution environment
 _exec_env = os.name
 _docker_ver = None
 # special variable set in the container
@@ -247,8 +259,6 @@ class nipype(_Config):
 
     crashfile_format = 'txt'
     """The file format for crashfiles, either text or pickle."""
-    disable_telemetry = bool(os.getenv("NIPYPE_NO_ET") is None)
-    """Disable interface telemetry"""
     get_linked_libs = False
     """Run NiPype's tool to enlist linked libraries for every interface."""
     memory_gb = None
@@ -297,12 +307,6 @@ class nipype(_Config):
                 }
             })
             ncfg.enable_resource_monitor()
-
-        if not cls.disable_telemetry:
-            # check for latest version
-            from nipype import check_latest_version
-            check_latest_version()
-            os.environ["NIPYPE_NO_ET"] = "1"
 
         # Nipype config (logs and execution)
         ncfg.update_config({
