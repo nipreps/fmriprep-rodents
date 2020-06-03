@@ -225,6 +225,7 @@ def is_in_directory(filepath, directory):
 def get_parser():
     """Defines the command line interface of the wrapper"""
     import argparse
+    from functools import partial
 
     class ToDict(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
@@ -234,10 +235,20 @@ def get_parser():
                 d[k] = os.path.abspath(v)
             setattr(namespace, self.dest, d)
 
+    def _is_file(path, parser):
+        """Ensure a given path exists and it is a file."""
+        if not os.path.isfile(path):
+            raise parser.error(
+                "Path should point to a file (or symlink of file): <%s>." % path
+            )
+        return path
+
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         add_help=False)
+
+    IsFile = partial(_is_file, parser=parser)
 
     # Standard FMRIPREP arguments
     parser.add_argument('bids_dir', nargs='?', type=os.path.abspath,
@@ -279,7 +290,7 @@ the spatial normalization.""" % (', '.join('"%s"' % s for s in TF_TEMPLATES),
                                  ', '.join(NONSTANDARD_REFERENCES)))
 
     g_wrap.add_argument(
-        '--fs-license-file', metavar='PATH', type=os.path.abspath,
+        '--fs-license-file', metavar='PATH', type=IsFile,
         default=os.getenv('FS_LICENSE', None),
         help='Path to FreeSurfer license key file. Get it (for free) by registering'
              ' at https://surfer.nmr.mgh.harvard.edu/registration.html')
