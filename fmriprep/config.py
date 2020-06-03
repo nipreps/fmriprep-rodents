@@ -71,8 +71,9 @@ import os
 from multiprocessing import set_start_method
 
 # Disable NiPype etelemetry always
-_nipype_et = os.getenv("NIPYPE_NO_ET")
+_disable_et = bool(os.getenv("NO_ET") is not None or os.getenv("NIPYPE_NO_ET") is not None)
 os.environ["NIPYPE_NO_ET"] = "1"
+os.environ["NO_ET"] = "1"
 
 try:
     set_start_method('forkserver')
@@ -115,7 +116,7 @@ DEFAULT_MEMORY_MIN_GB = 0.01
 
 # Ping NiPype eTelemetry once if env var was not set
 # workers on the pool will have the env variable set from the master process
-if _nipype_et is None:
+if not _disable_et:
     # Just get so analytics track one hit
     from contextlib import suppress
     from requests import get as _get_url, ConnectionError, ReadTimeout
