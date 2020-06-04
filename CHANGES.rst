@@ -1,3 +1,12 @@
+20.1.1 (June 04, 2020)
+======================
+Bug-fix release in the 20.1.x series.
+
+* FIX: FreeSurfer license manipulation & canary (#2165)
+* FIX: Dismiss ``echo`` entity from SDC reports (#2160)
+* FIX: Ensure the command-line alias of ``--nprocs`` is respected (#2152)
+* MAINT: Use legacy pip/setuptools for py2 checking (#2156)
+
 20.1.0 (May 27, 2020)
 =====================
 The second minor release series of 2020 is finally here!
