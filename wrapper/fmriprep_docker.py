@@ -237,6 +237,7 @@ def get_parser():
 
     def _is_file(path, parser):
         """Ensure a given path exists and it is a file."""
+        path = os.path.abspath(path)
         if not os.path.isfile(path):
             raise parser.error(
                 "Path should point to a file (or symlink of file): <%s>." % path
