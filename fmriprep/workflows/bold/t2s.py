@@ -36,7 +36,7 @@ def init_bold_t2s_wf(echo_times, mem_gb, omp_nthreads,
 
     Parameters
     ----------
-    echo_times : :obj:`list`
+    echo_times : :obj:`list` or :obj:`tuple`
         list of TEs associated with each echo
     mem_gb : :obj:`float`
         Size of BOLD file in GB
@@ -60,12 +60,12 @@ def init_bold_t2s_wf(echo_times, mem_gb, omp_nthreads,
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
-A T2* map was estimated from the preprocessed BOLD by fitting to a monoexponential signal
-decay model with nonlinear regression, using T2*/S0 estimates from a log-linear
+A T2\\* map was estimated from the preprocessed BOLD by fitting to a monoexponential signal
+decay model with nonlinear regression, using T2\\*/S0 estimates from a log-linear
 regression fit as initial values.
 For each voxel, the maximal number of echoes with reliable signal in that voxel were
 used to fit the model.
-The calculated T2* map was then used to optimally combine preprocessed BOLD across
+The calculated T2\\* map was then used to optimally combine preprocessed BOLD across
 echoes following the method described in [@posse_t2s].
 The optimally combined time series was carried forward as the *preprocessed BOLD*.
 """
@@ -76,7 +76,7 @@ The optimally combined time series was carried forward as the *preprocessed BOLD
 
     LOGGER.log(25, 'Generating T2* map and optimally combined ME-EPI time series.')
 
-    t2smap_node = pe.Node(T2SMap(echo_times=echo_times), name='t2smap_node')
+    t2smap_node = pe.Node(T2SMap(echo_times=list(echo_times)), name='t2smap_node')
 
     workflow.connect([
         (inputnode, t2smap_node, [('bold_file', 'in_files')]),

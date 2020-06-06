@@ -17,6 +17,8 @@ from nipype.interfaces.fsl import Split as FSLSplit
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
+from niworkflows.utils.misc import select_first
+
 from ...utils.meepi import combine_meepi_source
 
 from ...interfaces import DerivativesDataSink
@@ -141,52 +143,59 @@ def init_func_preproc_wf(bold_file):
     from niworkflows.interfaces.utils import DictMerge
     from sdcflows.workflows.base import init_sdc_estimate_wf, fieldmap_wrangler
 
-    ref_file = bold_file
     mem_gb = {'filesize': 1, 'resampled': 1, 'largemem': 1}
     bold_tlen = 10
-    multiecho = isinstance(bold_file, list)
 
     # Have some options handy
-    layout = config.execution.layout
     omp_nthreads = config.nipype.omp_nthreads
     freesurfer = config.workflow.run_reconall
     spaces = config.workflow.spaces
     output_dir = str(config.execution.output_dir)
 
+    # Extract BIDS entities and metadata from bold reference file
+    ref_file = select_first(bold_file)
+    layout = config.execution.layout
+    entities = layout.parse_file_entities(ref_file)
+    metadata = layout.get_metadata(ref_file)
+
+    # Drop echo entity for future queries, have a boolean shorthand
+    multiecho = bool(entities.pop("echo", None))
+    if multiecho and (isinstance(bold_file, str) or len(bold_file) == 1):
+        multiecho = False
+        config.loggers.warning(
+            f"Only one echo <{ref_file}> found in a seemingly multi-echo dataset. "
+            "Falling back to single-echo mode."
+        )
+        bold_file = ref_file  # Just in case - drop the list
+
     if multiecho:
-        tes = [layout.get_metadata(echo)['EchoTime'] for echo in bold_file]
-        ref_file = dict(zip(tes, bold_file))[min(tes)]
+        # reorder echoes from shortest to largest
+        tes, bold_file = zip(*sorted([
+            (layout.get_metadata(bf)["EchoTime"], bf) for bf in bold_file
+        ]))
+        ref_file = bold_file[0]  # Reset reference to be the shortest TE
 
     if os.path.isfile(ref_file):
         bold_tlen, mem_gb = _create_mem_gb(ref_file)
 
     wf_name = _get_wf_name(ref_file)
     config.loggers.workflow.debug(
-        'Creating bold processing workflow for "%s" (%.2f GB / %d TRs). '
+        'Creating bold processing workflow for <%s> (%.2f GB / %d TRs). '
         'Memory resampled/largemem=%.2f/%.2f GB.',
         ref_file, mem_gb['filesize'], bold_tlen, mem_gb['resampled'], mem_gb['largemem'])
 
     # Find associated sbref, if possible
-    entities = layout.parse_file_entities(ref_file)
-    if multiecho:
-        # Remove echo entity to collect all echoes
-        _ = entities.pop('echo', None)
     entities['suffix'] = 'sbref'
     entities['extension'] = ['nii', 'nii.gz']  # Overwrite extensions
-
     sbref_files = layout.get(return_type='file', **entities)
-    refbase = os.path.basename(ref_file)
-    if 'sbref' in config.workflow.ignore:
-        config.loggers.workflow.info("Single-band reference files ignored.")
-    elif sbref_files:
-        sbbase = ','.join([os.path.basename(sbf) for sbf in sbref_files])
-        config.loggers.workflow.info("Using single-band reference file(s) %s.",
-                                     sbbase)
-    else:
-        config.loggers.workflow.info("No single-band-reference found for %s.",
-                                     refbase)
 
-    metadata = layout.get_metadata(ref_file)
+    sbref_msg = f"No single-band-reference found for {os.path.basename(ref_file)}."
+    if sbref_files and 'sbref' in config.workflow.ignore:
+        sbref_msg = "Single-band reference file(s) found and ignored."
+    elif sbref_files:
+        sbref_msg = "Using single-band reference file(s) {}.".format(
+            ','.join([os.path.basename(sbf) for sbf in sbref_files]))
+    config.loggers.workflow.info(sbref_msg)
 
     # Find fieldmaps. Options: (phase1|phase2|phasediff|epi|fieldmap|syn)
     fmaps = None
@@ -286,16 +295,13 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     ])
 
     # Generate a tentative boldref
-    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads)
+    bold_reference_wf = init_bold_reference_wf(
+        omp_nthreads=omp_nthreads,
+        bold_file=bold_file,
+        sbref_files=sbref_files,
+        multiecho=multiecho,
+    )
     bold_reference_wf.inputs.inputnode.dummy_scans = config.workflow.dummy_scans
-    if sbref_files is not None:
-        from niworkflows.interfaces.images import ValidateImage
-        val_sbref = pe.MapNode(ValidateImage(), name='val_sbref',
-                               iterfield=['in_file'])
-        val_sbref.inputs.in_file = sbref_files
-        workflow.connect([
-            (val_sbref, bold_reference_wf, [('out_file', 'inputnode.sbref_file')]),
-        ])
 
     # Top-level BOLD splitter
     bold_split = pe.Node(FSLSplit(dimension='t'), name='bold_split',
@@ -408,8 +414,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     workflow.connect([
         (inputnode, t1w_brain, [('t1w_preproc', 'in_file'),
                                 ('t1w_mask', 'in_mask')]),
-        # Generate early reference
-        (inputnode, bold_reference_wf, [('bold_file', 'inputnode.bold_file')]),
         # BOLD buffer has slice-time corrected if it was run, original otherwise
         (boldbuffer, bold_split, [('bold_file', 'in_file')]),
         # HMC
