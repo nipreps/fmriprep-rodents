@@ -17,7 +17,7 @@ from nipype.interfaces.fsl import Split as FSLSplit
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
-from niworkflows.utils.misc import select_first
+from niworkflows.utils.connections import pop_file
 
 from ...utils.meepi import combine_meepi_source
 
@@ -153,7 +153,7 @@ def init_func_preproc_wf(bold_file):
     output_dir = str(config.execution.output_dir)
 
     # Extract BIDS entities and metadata from bold reference file
-    ref_file = select_first(bold_file)
+    ref_file = pop_file(bold_file)
     layout = config.execution.layout
     entities = layout.parse_file_entities(ref_file)
     metadata = layout.get_metadata(ref_file)
