@@ -17,7 +17,8 @@ from nipype.interfaces.fsl import Split as FSLSplit
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
-from niworkflows.utils.connections import pop_file
+from niworkflows.utils.connections import pop_file, listify
+
 
 from ...utils.meepi import combine_meepi_source
 
@@ -152,23 +153,30 @@ def init_func_preproc_wf(bold_file):
     spaces = config.workflow.spaces
     output_dir = str(config.execution.output_dir)
 
-    # Extract BIDS entities and metadata from bold reference file
-    ref_file = pop_file(bold_file)
+    # Extract BIDS entities and metadata from BOLD file(s)
+    entities = extract_entities(bold_file)
     layout = config.execution.layout
-    entities = layout.parse_file_entities(ref_file)
+
+    # Take first file as reference
+    ref_file = pop_file(bold_file)
     metadata = layout.get_metadata(ref_file)
 
-    # Drop echo entity for future queries, have a boolean shorthand
-    multiecho = bool(entities.pop("echo", None))
-    if multiecho and (isinstance(bold_file, str) or len(bold_file) == 1):
-        multiecho = False
+    echo_idxs = listify(entities.get("echo", []))
+    multiecho = len(echo_idxs) > 2
+    if len(echo_idxs) == 1:
         config.loggers.warning(
-            f"Only one echo <{ref_file}> found in a seemingly multi-echo dataset. "
-            "Falling back to single-echo mode."
+            f"Running a single echo <{ref_file}> from a seemingly multi-echo dataset."
         )
         bold_file = ref_file  # Just in case - drop the list
 
+    if len(echo_idxs) == 2:
+        raise RuntimeError(
+            "Multi-echo processing requires at least three different echos (found two)."
+        )
+
     if multiecho:
+        # Drop echo entity for future queries, have a boolean shorthand
+        entities.pop("echo", None)
         # reorder echoes from shortest to largest
         tes, bold_file = zip(*sorted([
             (layout.get_metadata(bf)["EchoTime"], bf) for bf in bold_file
@@ -887,3 +895,40 @@ def _to_join(in_file, join_file):
         return in_file
     res = JoinTSVColumns(in_file=in_file, join_file=join_file).run()
     return res.outputs.out_file
+
+
+def extract_entities(file_list):
+    """
+    Return a dictionary of common entities given a list of files.
+
+    Examples
+    --------
+    >>> extract_entities('sub-01/anat/sub-01_T1w.nii.gz')
+    {'subject': '01', 'suffix': 'T1w', 'datatype': 'anat', 'extension': 'nii.gz'}
+    >>> extract_entities(['sub-01/anat/sub-01_T1w.nii.gz'] * 2)
+    {'subject': '01', 'suffix': 'T1w', 'datatype': 'anat', 'extension': 'nii.gz'}
+    >>> extract_entities(['sub-01/anat/sub-01_run-1_T1w.nii.gz',
+    ...                   'sub-01/anat/sub-01_run-2_T1w.nii.gz'])
+    {'subject': '01', 'run': [1, 2], 'suffix': 'T1w', 'datatype': 'anat',
+     'extension': 'nii.gz'}
+
+    """
+    from collections import defaultdict
+    from bids.layout import parse_file_entities
+
+    entities = defaultdict(list)
+    for e, v in [
+        ev_pair
+        for f in listify(file_list)
+        for ev_pair in parse_file_entities(f).items()
+    ]:
+        entities[e].append(v)
+
+    def _unique(inlist):
+        inlist = sorted(set(inlist))
+        if len(inlist) == 1:
+            return inlist[0]
+        return inlist
+    return {
+        k: _unique(v) for k, v in entities.items()
+    }
