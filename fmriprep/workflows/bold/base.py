@@ -206,9 +206,11 @@ def init_func_preproc_wf(bold_file):
         fmaps = {'syn': False}
 
     # Short circuits: (True and True and (False or 'TooShort')) == 'TooShort'
-    run_stc = (bool(metadata.get("SliceTiming")) and
-               'slicetiming' not in config.workflow.ignore and
-               (_get_series_len(ref_file) > 4 or "TooShort"))
+    run_stc = (
+        bool(metadata.get("SliceTiming"))
+        and 'slicetiming' not in config.workflow.ignore
+        and (_get_series_len(ref_file) > 4 or "TooShort")
+    )
 
     # Build workflow
     workflow = Workflow(name=wf_name)

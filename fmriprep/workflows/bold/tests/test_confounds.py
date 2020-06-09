@@ -6,9 +6,11 @@ import nibabel as nib
 from ..confounds import _add_volumes, _remove_volumes
 
 
-skip_pytest = pytest.mark.skipif(not os.getenv('FMRIPREP_REGRESSION_SOURCE') or
-                                 not os.getenv('FMRIPREP_REGRESSION_TARGETS'),
-                                 reason='FMRIPREP_REGRESSION_{SOURCE,TARGETS} env vars not set')
+skip_pytest = pytest.mark.skipif(
+    not os.getenv('FMRIPREP_REGRESSION_SOURCE')
+    or not os.getenv('FMRIPREP_REGRESSION_TARGETS'),
+    reason='FMRIPREP_REGRESSION_{SOURCE,TARGETS} env vars not set'
+)
 
 
 @skip_pytest
