@@ -61,3 +61,9 @@ stop_on_first_crash = false
 [nipype.plugin_args]
 maxtasksperchild = 1
 raise_insufficient = false
+
+[execution.bids_filters.t1w]
+reconstruction = "<Query.NONE: 1>"
+
+[execution.bids_filters.t2w]
+reconstruction = "<Query.NONE: 1>"
