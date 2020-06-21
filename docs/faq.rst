@@ -192,6 +192,9 @@ compute nodes are isolated, or in PC/laptop enviroments if you are travelling.
 query for a template resource that has not been previously accessed.
 If you know what are the templates you are planning to use, you could
 prefetch them using the Python client.
+In addition to the output-spaces that you specify, fmriprep will use
+'MNI152NLin2009cAsym', 'MNI152NLin6Asym' and 'OASIS30ANTs' templates, that
+also need to be prefetched.
 To do so, follow the next steps.
 
   1. By default, a mirror of *TemplateFlow* to store the resources will be
