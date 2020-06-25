@@ -192,9 +192,11 @@ compute nodes are isolated, or in PC/laptop enviroments if you are travelling.
 query for a template resource that has not been previously accessed.
 If you know what are the templates you are planning to use, you could
 prefetch them using the Python client.
-In addition to the output-spaces that you specify, *fMRIPrep* will use
-``MNI152NLin2009cAsym`` and ``OASIS30ANTs`` templates,
-(as well as ``MNI152NLin6Asym`` if ``--cifti-output`` or ``--use-aroma`` is specified),
+In addition to the ``--output-spaces`` that you specify, *fMRIPrep* will
+internally require the ``MNI152NLin2009cAsym`` template.
+If the ``--skull-strip-template`` option is not set, then ``OASIS30ANTs``
+will be used.
+Finally, either ``--cifti-output`` or ``--use-aroma`` arguments require ``MNI152NLin6Asym``,
 that also need to be prefetched.
 To do so, follow the next steps.
 
