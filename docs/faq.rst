@@ -187,7 +187,7 @@ How do you use TemplateFlow in the absence of access to the Internet?
 ---------------------------------------------------------------------
 This is a fairly common situation in :abbr:`HPCs (high-performance computing)`
 systems, where the so-called login nodes have access to the Internet but
-compute nodes are isolated, or in PC/laptop enviroments if you are travelling.
+compute nodes are isolated, or in PC/laptop environments if you are traveling.
 *TemplateFlow* will require Internet access the first time it receives a
 query for a template resource that has not been previously accessed.
 If you know what are the templates you are planning to use, you could
