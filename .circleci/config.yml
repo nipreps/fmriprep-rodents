@@ -7,7 +7,7 @@ jobs:
       SCRATCH: "/scratch"
     machine:
       image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
       - run:
@@ -20,10 +20,10 @@ jobs:
 
       - restore_cache:
           keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-master-
-            - build-v4-
+            - build-v0-{{ .Branch }}-{{ epoch }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-master-
+            - build-v0-
           paths:
             - /tmp/docker
       - run:
@@ -41,15 +41,15 @@ jobs:
             if [[ "$success" = "0" ]]; then
                 echo "Pulling from local registry"
                 docker tag localhost:5000/ubuntu ubuntu:xenial-20200114
-                docker pull localhost:5000/fmriprep
-                docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
-                docker tag localhost:5000/fmriprep poldracklab/fmriprep
+                docker pull localhost:5000/fmriprep-rodents
+                docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+                docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents
             else
                 echo "Pulling from Docker Hub"
                 docker pull ubuntu:xenial-20200114
                 docker tag ubuntu:xenial-20200114 localhost:5000/ubuntu
                 docker push localhost:5000/ubuntu
-                docker pull poldracklab/fmriprep:latest
+                docker pull poldracklab/fmriprep-rodents:latest
             fi
       - run:
           name: Build Docker image
@@ -68,12 +68,12 @@ jobs:
             fi
             sed -i -E "s/(__version__ = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" wrapper/fmriprep_docker.py
             sed -i -E "s/(var version = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" docs/citing.rst
-            sed -i "s/title = {FMRIPrep}/title = {FMRIPrep ${CIRCLE_TAG:-$THISVERSION}}/" fmriprep/data/boilerplate.bib
+            sed -i "s/title = {FMRIPrep}/title = {FMRIPrep ${CIRCLE_TAG:-$THISVERSION}}/" fmriprep_rodents/data/boilerplate.bib
             # Build docker image
             e=1 && for i in {1..5}; do
               docker build --rm \
-                --cache-from=poldracklab/fmriprep \
-                -t poldracklab/fmriprep:latest \
+                --cache-from=poldracklab/fmriprep-rodents \
+                -t poldracklab/fmriprep-rodents:latest \
                 --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
                 --build-arg VCS_REF=`git rev-parse --short HEAD` \
                 --build-arg VERSION="${CIRCLE_TAG:-$THISVERSION}" . \
@@ -83,8 +83,8 @@ jobs:
           name: Docker push to local registry
           no_output_timeout: 40m
           command: |
-            docker tag poldracklab/fmriprep:latest localhost:5000/fmriprep
-            docker push localhost:5000/fmriprep
+            docker tag poldracklab/fmriprep-rodents:latest localhost:5000/fmriprep-rodents
+            docker push localhost:5000/fmriprep-rodents
       - run:
           name: Docker registry garbage collection
           command: |
@@ -94,9 +94,9 @@ jobs:
       - persist_to_workspace:
           root: /tmp
           paths:
-            - src/fmriprep
+            - src/fmriprep-rodents
       - save_cache:
-         key: build-v4-{{ .Branch }}-{{ epoch }}
+         key: build-v0-{{ .Branch }}-{{ epoch }}
          paths:
             - /tmp/docker
 
@@ -108,126 +108,35 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - data-v8-{{ .Branch }}-{{ .Revision }}
-            - data-v8-{{ .Branch }}
-            - data-v8-
-      - run:
-          name: Get test data from ds000005
-          command: |
-            mkdir -p /tmp/data
-            if [[ ! -d /tmp/data/ds005 ]]; then
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds005_downsampled.tar.gz "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/57f32a429ad5a101f977eb75"
-              tar xvzf ds005_downsampled.tar.gz -C /tmp/data/
-            else
-              echo "Dataset ds000005 was cached"
-            fi
-      - run:
-          name: Get test data from ds000054
-          command: |
-            if [[ ! -d /tmp/data/ds054 ]]; then
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds054_downsampled.tar.gz "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/57f32c22594d9001ef91bf9e"
-              tar xvzf ds054_downsampled.tar.gz -C /tmp/data/
-            else
-              echo "Dataset ds000054 was cached"
-            fi
-      - run:
-          name: Get test data from ds000210
-          command: |
-            if [[ ! -d /tmp/data/ds210 ]]; then
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds210_downsampled.tar.gz "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/5ae9e37b9a64d7000ce66c21"
-              tar xvzf ds210_downsampled.tar.gz -C /tmp/data/
-            else
-              echo "Dataset ds000210 was cached"
-            fi
-      - run:
-          name: Get FreeSurfer derivatives for ds000005
-          command: |
-            if [[ ! -d /tmp/ds005/freesurfer ]]; then
-              mkdir -p /tmp/ds005
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds005_derivatives_freesurfer.tar.gz "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/58fe59eb594d900250960180"
-              tar xvzf ds005_derivatives_freesurfer.tar.gz -C /tmp/ds005
-            else
-              echo "FreeSurfer derivatives of ds000005 were cached"
-            fi
-      - run:
-          name: Get sMRIPrep derivatives for ds000005
-          command: |
-            if [[ ! -d /tmp/ds005/smriprep-0.6 ]]; then
-              mkdir -p /tmp/ds005
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds005_sub-01_smriprep.zip "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/5e860c528140b402134249d1"
-              unzip -d /tmp/ds005 ds005_sub-01_smriprep.zip
-            else
-              echo "sMRIPrep derivatives of ds000005 were cached"
-            fi
-      - run:
-          name: Get sMRIPrep derivatives for ds000054
-          command: |
-            if [[ ! -d /tmp/ds054/smriprep-0.6 ]]; then
-              mkdir -p /tmp/ds054
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds054_sub-100185_smriprep.zip "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/5e86be591ab243025be0c6f1"
-              unzip -d /tmp/ds054 ds054_sub-100185_smriprep.zip
-            else
-              echo "sMRIPrep derivatives of ds000054 were cached"
-            fi
-      - run:
-          name: Get sMRIPrep derivatives for ds000210
-          command: |
-            if [[ ! -d /tmp/ds210/smriprep-0.6 ]]; then
-              mkdir -p /tmp/ds210
-              wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                -O ds210_sub-02_smriprep.zip "https://files.osf.io/v1/resources/fvuh8/providers/osfstorage/5e86e9bb1ab2430268e03873"
-              unzip -d /tmp/ds210 ds210_sub-02_smriprep.zip
-            else
-              echo "sMRIPrep derivatives of ds000210 were cached"
-            fi
+            - data-v0-{{ .Branch }}-{{ .Revision }}
+            - data-v0-{{ .Branch }}
+            - data-v0-
       - save_cache:
-         key: data-v8-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+         key: data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
          paths:
             - /tmp/data
-            - /tmp/ds005/freesurfer
-            - /tmp/ds005/smriprep-0.6
-            - /tmp/ds054/smriprep-0.6
-            - /tmp/ds210/smriprep-0.6
       - run:
           name: Store FreeSurfer license file
           command: |
             mkdir -p /tmp/fslicense
             cd /tmp/fslicense
             echo "cHJpbnRmICJrcnp5c3p0b2YuZ29yZ29sZXdza2lAZ21haWwuY29tXG41MTcyXG4gKkN2dW12RVYzelRmZ1xuRlM1Si8yYzFhZ2c0RVxuIiA+IGxpY2Vuc2UudHh0Cg==" | base64 -d | sh
-      - run:
-          name: Create Nipype config files
-          command: |
-            mkdir -p /tmp/ds005 /tmp/ds054 /tmp/ds210
-            printf "[execution]\nstop_on_first_crash = true\n" > /tmp/ds005/nipype.cfg
-            echo "poll_sleep_duration = 0.01" >> /tmp/ds005/nipype.cfg
-            echo "hash_method = content" >> /tmp/ds005/nipype.cfg
-            cp /tmp/ds005/nipype.cfg /tmp/ds054/nipype.cfg
-            cp /tmp/ds005/nipype.cfg /tmp/ds210/nipype.cfg
       - persist_to_workspace:
           root: /tmp
           paths:
             - fslicense
-            - ds005/nipype.cfg
-            - ds054/nipype.cfg
-            - ds210/nipype.cfg
 
   test_pytest:
     machine:
       image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout:
-          path: /home/circleci/src/fmriprep
+          path: /home/circleci/src/fmriprep-rodents
       - run:
           name: Check whether build should be skipped
           command: |
-            cd /home/circleci/src/fmriprep
+            cd /home/circleci/src/fmriprep-rodents
             if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
               echo "Only docs build"
               circleci step halt
@@ -241,14 +150,14 @@ jobs:
           at: /tmp
       - restore_cache:
           keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-
+            - build-v0-{{ .Branch }}-{{ epoch }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-
           paths:
             - /tmp/docker
       - restore_cache:
           keys:
-            - data-v8-{{ .Revision }}
+            - data-v0-{{ .Revision }}
       - run:
           name: Set-up a Docker registry
           command: |
@@ -257,16 +166,16 @@ jobs:
       - run:
           name: Pull images from local registry
           command: |
-            docker pull localhost:5000/fmriprep
-            docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
+            docker pull localhost:5000/fmriprep-rodents
+            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
       - run:
           name: Run fMRIPrep tests
           no_output_timeout: 2h
           command: |
             docker run -ti --rm=false \
               -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
-              --entrypoint="pytest" poldracklab/fmriprep:latest \
-              /src/fmriprep/fmriprep -svx --doctest-modules
+              --entrypoint="pytest" poldracklab/fmriprep-rodents:latest \
+              /src/fmriprep-rodents/fmriprep_rodents -svx --doctest-modules
 
       - run:
           name: Test fmriprep-wrapper (Python 2)
@@ -279,8 +188,8 @@ jobs:
             pip install --upgrade "pip<21" "setuptools<45"
             pip install --upgrade wrapper/
             which fmriprep-docker
-            fmriprep-docker -i poldracklab/fmriprep:latest --help
-            fmriprep-docker -i poldracklab/fmriprep:latest --version
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --help
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --version
       - run:
           name: Test fmriprep-wrapper (Python 3)
           command: |
@@ -292,15 +201,15 @@ jobs:
             pip install --upgrade pip setuptools
             pip install --upgrade wrapper/
             which fmriprep-docker
-            fmriprep-docker -i poldracklab/fmriprep:latest --help
-            fmriprep-docker -i poldracklab/fmriprep:latest --version
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --help
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --version
       - store_artifacts:
           path: /tmp/data/reports
 
   build_docs:
     docker:
       - image: python:3.7.4
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     environment:
       - FSLOUTPUTTYPE: 'NIFTI'
     steps:
@@ -332,497 +241,12 @@ jobs:
           name: Build documentation
           command: make SPHINXOPTS="-W" -C docs html
       - store_artifacts:
-          path: /tmp/src/fmriprep/docs/_build/html
-
-  ds005:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/ds005
-    environment:
-      - FS_LICENSE: /tmp/fslicense/license.txt
-      - DATASET: ds005
-    steps:
-      - checkout:
-          path: /home/circleci/src/fmriprep
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?ds005\]' )" != "" ]]; then
-              echo "Skipping ds000005 build"
-              circleci step halt
-            fi
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[no[ _-]?fasttrack\]' )" != "" ]]; then
-              touch /tmp/.nofasttrack
-              echo "Anatomical fasttrack reusing sMRIPrep's derivatives will not be used."
-            fi
-
-      - attach_workspace:
-          at: /tmp
-      - restore_cache:
-          keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-
-          paths:
-            - /tmp/docker
-      - restore_cache:
-          keys:
-            - data-v8-{{ .Branch }}-{{ .Revision }}
-      - restore_cache:
-          keys:
-            - ds005-anat-v18-{{ .Branch }}-{{ .Revision }}
-            - ds005-anat-v18-{{ .Branch }}
-            - ds005-anat-v18-master
-            - ds005-anat-v18-
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep
-            docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
-      - run:
-          name: Setting up test
-          command: |
-            export PY3=$(pyenv versions | grep '3\.' |
-                         sed -e 's/.* 3\./3./' -e 's/ .*//')
-            pyenv local $PY3
-            mkdir -p /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
-            pip install --upgrade /tmp/src/fmriprep/wrapper/
-      - run:
-          name: Run anatomical workflow on ds005
-          no_output_timeout: 2h
-          command: |
-            mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            if [ -f /tmp/.nofasttrack ]; then
-                fmriprep-docker -i poldracklab/fmriprep:latest \
-                    -e FMRIPREP_DEV 1 -u $(id -u) \
-                    --network none \
-                    --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                    /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                    --fs-subjects-dir /tmp/${DATASET}/freesurfer \
-                    --skull-strip-template OASIS30ANTs:res-1 \
-                    --output-spaces MNI152NLin2009cAsym MNI152NLin6Asym \
-                    --sloppy --write-graph --mem_mb 4096 \
-                    --nthreads 2 --anat-only -vv
-            fi
-      - run:
-          name: Clean-up after anatomical run
-          command: |
-            rm -rf /tmp/${DATASET}/work/fmriprep_wf/fsdir*
-            rm -rf /tmp/${DATASET}/work/reportlets
-            rm -rf /tmp/${DATASET}/derivatives/fmriprep
-      - save_cache:
-         key: ds005-anat-v18-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
-         paths:
-            - /tmp/ds005/work
-
-      - run:
-          name: Run full fMRIPrep on ds005 (LegacyMultiProc plugin)
-          no_output_timeout: 2h
-          command: |
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            FASTRACK_ARG="--anat-derivatives /tmp/${DATASET}/smriprep-0.6"
-            if [ -f /tmp/.nofasttrack ]; then
-                FASTRACK_ARG=""
-            fi
-            fmriprep-docker -i poldracklab/fmriprep:latest \
-                -e FMRIPREP_DEV 1 -u $(id -u) \
-                --network none \
-                --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                --fs-subjects-dir /tmp/${DATASET}/freesurfer \
-                ${FASTRACK_ARG} \
-                --sloppy --write-graph --use-syn-sdc --mem_mb 4096 \
-                --use-aroma \
-                --skull-strip-template OASIS30ANTs:res-1 \
-                --output-spaces MNI152NLin2009cAsym fsaverage5 fsnative MNI152NLin6Asym anat \
-                --use-plugin /home/circleci/src/fmriprep/.circleci/legacy.yml \
-                --nthreads 2 --cifti-output -vv
-      - store_artifacts:
-          path: /tmp/ds005/derivatives
-      - run:
-          name: Move intermediate results for second run
-          command: |
-            mkdir -p /tmp/${DATASET}/derivatives_partial
-            sudo cp -a /tmp/${DATASET}/work /tmp/${DATASET}/work_partial
-            sudo rm -rf /tmp/${DATASET}/work_partial/fmriprep_wf/single_subject_01_wf/func_preproc_task_mixedgamblestask_run_02_wf/ica_aroma_wf
-      - run:
-          name: Checking outputs of full fMRIPrep run
-          command: |
-            mkdir -p /tmp/${DATASET}/test
-            CHECK_OUTPUTS_FILE="${DATASET}_fasttrack_outputs.txt"
-            if [ -f /tmp/.nofasttrack ]; then
-                CHECK_OUTPUTS_FILE="${DATASET}_outputs.txt"
-            fi
-            find /tmp/${DATASET}/derivatives \( -path */figures -o -path */log \) -prune -o -name "*" -print | sed s+/tmp/${DATASET}/derivatives/++ | sort > /tmp/${DATASET}/test/outputs.out
-            diff /tmp/src/fmriprep/.circleci/${CHECK_OUTPUTS_FILE} /tmp/${DATASET}/test/outputs.out
-            exit $?
-      - run:
-          name: Re-run fMRIPrep on single run of task data
-          no_output_timeout: 2h
-          command: |
-            rm /tmp/data/${DATASET}/sub-01/func/*_run-01_*
-            FASTRACK_ARG="--anat-derivatives /tmp/${DATASET}/smriprep-0.6"
-            if [ -f /tmp/.nofasttrack ]; then
-                FASTRACK_ARG=""
-            fi
-            fmriprep-docker -i poldracklab/fmriprep:latest \
-                -e FMRIPREP_DEV 1 -u $(id -u) \
-                --network none \
-                --config $PWD/nipype.cfg -w /tmp/${DATASET}/work_partial \
-                /tmp/data/${DATASET} /tmp/${DATASET}/derivatives_partial participant \
-                --fs-subjects-dir /tmp/${DATASET}/freesurfer \
-                ${FASTRACK_ARG} \
-                --sloppy --write-graph --use-syn-sdc --mem_mb 4096 \
-                --output-spaces MNI152NLin2009cAsym fsaverage5 fsnative MNI152NLin6Asym anat \
-                --aroma-melodic-dimensionality 2 --use-aroma \
-                --nthreads 2 --cifti-output -vv
-      - run:
-          name: Checking outputs of partial fMRIPrep run
-          command: |
-            mkdir -p /tmp/${DATASET}/test
-            CHECK_OUTPUTS_FILE="${DATASET}_partial_fasttrack_outputs.txt"
-            if [ -f /tmp/.nofasttrack ]; then
-                CHECK_OUTPUTS_FILE="${DATASET}_partial_outputs.txt"
-            fi
-            sudo rm -rf /tmp/${DATASET}/derivatives_partial/freesurfer
-            find /tmp/${DATASET}/derivatives_partial \( -path */figures -o -path */log \) -prune -o -name "*" -print | sed s+/tmp/${DATASET}/derivatives_partial/++ | sort > /tmp/${DATASET}/test/outputs.out
-            diff /tmp/src/fmriprep/.circleci/${CHECK_OUTPUTS_FILE} /tmp/${DATASET}/test/outputs.out
-            exit $?
-      - run:
-          name: Clean working directory
-          when: on_success
-          command: |
-            sudo chown $(id -un):$(id -gn) -R /tmp/${DATASET}
-            sudo rm -rf /tmp/${DATASET}/work
-            sudo rm -rf /tmp/${DATASET}/work_partial
-      - run:
-          name: Clean working directory
-          when: on_fail
-          command: |
-            sudo chown $(id -un):$(id -gn) -R /tmp/${DATASET}
-            find /tmp/${DATASET}/work \( -name "*.nii.gz" -or -name "*.nii" -or -name "*.gii" -or -name "*.h5" \) \
-                -exec sh -c 'rm -f {}; touch {}' \;
-            find /tmp/${DATASET}/work_partial \( -name "*.nii.gz" -or -name "*.nii" -or -name "*.gii" -or -name "*.h5" \) \
-                -exec sh -c 'rm -f {}; touch {}' \;
-
-      - store_artifacts:
-          path: /tmp/ds005/work
-
-  ds054:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/ds054
-    environment:
-      - FS_LICENSE: /tmp/fslicense/license.txt
-      - DATASET: ds054
-    steps:
-      - checkout:
-          path: /home/circleci/src/fmriprep
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?ds054\]' )" != "" ]]; then
-              echo "Skipping ds000054 build"
-              circleci step halt
-            fi
-
-      - attach_workspace:
-          at: /tmp
-      - restore_cache:
-          keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-
-          paths:
-            - /tmp/docker
-      - restore_cache:
-          keys:
-            - data-v8-{{ .Branch }}-{{ .Revision }}
-      - restore_cache:
-          keys:
-            - ds054-anat-v14-{{ .Branch }}-{{ .Revision }}
-            - ds054-anat-v14-{{ .Branch }}
-            - ds054-anat-v14-master
-            - ds054-anat-v14-
-      - run:
-          name: Setting up test
-          command: |
-            export PY3=$(pyenv versions | grep '3\.' |
-                         sed -e 's/.* 3\./3./' -e 's/ .*//')
-            pyenv local $PY3
-            mkdir -p /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
-            pip install --upgrade /tmp/src/fmriprep/wrapper/
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep
-            docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
-      - run:
-          name: Run anatomical workflow on ds054
-          no_output_timeout: 2h
-          command: |
-            mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            if [ -f /tmp/.nofasttrack ]; then
-                fmriprep-docker -i poldracklab/fmriprep:latest \
-                    -e FMRIPREP_DEV 1 \
-                    --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                    /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                    --fs-no-reconall --sloppy --write-graph \
-                    --output-spaces MNI152NLin2009cAsym \
-                    --mem_mb 4096 --nthreads 2 --anat-only -vv
-            fi
-      - run:
-          name: Clean-up after anatomical run
-          command: |
-            rm -rf /tmp/${DATASET}/work/fmriprep_wf/fsdir*
-            rm -rf /tmp/${DATASET}/work/reportlets
-            rm -rf /tmp/${DATASET}/derivatives/fmriprep
-      - save_cache:
-         key: ds054-anat-v14-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
-         paths:
-            - /tmp/ds054/work
-
-      - run:
-          name: Run full fMRIPrep on ds054
-          no_output_timeout: 2h
-          command: |
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            FASTRACK_ARG="--anat-derivatives /tmp/${DATASET}/smriprep-0.6"
-            if [ -f /tmp/.nofasttrack ]; then
-                FASTRACK_ARG=""
-            fi
-            fmriprep-docker -i poldracklab/fmriprep:latest \
-                -e FMRIPREP_DEV 1 \
-                --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                ${FASTRACK_ARG} \
-                --fs-no-reconall --sloppy \
-                --output-spaces MNI152NLin2009cAsym:res-2 anat func \
-                --mem_mb 4096 --nthreads 2 -vv
-      - run:
-          name: Checking outputs of fMRIPrep
-          command: |
-            mkdir -p /tmp/${DATASET}/test
-            CHECK_OUTPUTS_FILE="${DATASET}_fasttrack_outputs.txt"
-            if [ -f /tmp/.nofasttrack ]; then
-                CHECK_OUTPUTS_FILE="${DATASET}_outputs.txt"
-            fi
-            find /tmp/${DATASET}/derivatives \( -path */figures -o -path */log \) -prune -o -name "*" -print | sed s+/tmp/${DATASET}/derivatives/++ | sort > /tmp/${DATASET}/test/outputs.out
-            diff /tmp/src/fmriprep/.circleci/${CHECK_OUTPUTS_FILE} /tmp/${DATASET}/test/outputs.out
-            exit $?
-      - run:
-          name: Generate report with one artificial error
-          command: |
-            sudo mv /tmp/${DATASET}/derivatives/fmriprep/sub-100185.html \
-                    /tmp/${DATASET}/derivatives/fmriprep/sub-100185_noerror.html
-            UUID="$(date '+%Y%m%d-%H%M%S_')$(uuidgen)"
-            mkdir -p /tmp/${DATASET}/derivatives/fmriprep/sub-100185/log/$UUID/
-            cp /tmp/src/fmriprep/fmriprep/data/tests/crash_files/*.txt \
-                /tmp/${DATASET}/derivatives/fmriprep/sub-100185/log/$UUID/
-            set +e
-            fmriprep-docker -i poldracklab/fmriprep:latest \
-                -e FMRIPREP_DEV 1 \
-                --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                --fs-no-reconall --sloppy --write-graph \
-                --output-spaces MNI152NLin2009cAsym:res-2 anat func \
-                --reports-only --run-uuid $UUID
-            RET=$?
-            set -e
-            [[ "$RET" -eq "1" ]]
-      - run:
-          name: Clean working directory
-          when: on_success
-          command: |
-            sudo chown $(id -un):$(id -gn) -R /tmp/${DATASET}
-            sudo rm -rf /tmp/${DATASET}/work
-      - run:
-          name: Clean working directory
-          when: on_fail
-          command: |
-            sudo chown $(id -un):$(id -gn) -R /tmp/${DATASET}
-            find /tmp/${DATASET}/work \( -name "*.nii.gz" -or -name "*.nii" -or -name "*.gii" -or -name "*.h5" \) \
-                -exec sh -c 'rm -f {}; touch {}' \;
-      - store_artifacts:
-          path: /tmp/ds054
-
-  ds210:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/ds210
-    environment:
-      - FS_LICENSE: /tmp/fslicense/license.txt
-      - DATASET: ds210
-    steps:
-      - checkout:
-          path: /home/circleci/src/fmriprep
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?ds210\]' )" != "" ]]; then
-              echo "Skipping ds000210 build"
-              circleci step halt
-            fi
-
-      - attach_workspace:
-          at: /tmp
-      - restore_cache:
-          keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-
-          paths:
-            - /tmp/docker
-      - restore_cache:
-          keys:
-            - data-v8-{{ .Branch }}-{{ .Revision }}
-      - restore_cache:
-          keys:
-            - ds210-anat-v12-{{ .Branch }}-{{ .Revision }}
-            - ds210-anat-v12-{{ .Branch }}-
-            - ds210-anat-v12-master
-            - ds210-anat-v12-
-      - run:
-          name: Setting up test
-          command: |
-            export PY3=$(pyenv versions | grep '3\.' |
-                         sed -e 's/.* 3\./3./' -e 's/ .*//')
-            pyenv local $PY3
-            mkdir -p /tmp/${DATASET}/derivatives && sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
-            pip install --upgrade /tmp/src/fmriprep/wrapper/
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep
-            docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
-      - run:
-          name: Run anatomical workflow on ds000210
-          no_output_timeout: 2h
-          command: |
-            mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            if [ -f /tmp/.nofasttrack ]; then
-                fmriprep-docker -i poldracklab/fmriprep:latest \
-                    -e FMRIPREP_DEV 1 \
-                    --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                    /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                    --fs-no-reconall --sloppy --write-graph \
-                    --output-spaces MNI152NLin2009cAsym \
-                    --mem_mb 4096 --nthreads 2 --anat-only -vv
-            fi
-      - run:
-          name: Clean-up after anatomical run
-          command: |
-            rm -rf /tmp/${DATASET}/work/fmriprep_wf/fsdir*
-            rm -rf /tmp/${DATASET}/work/reportlets
-            rm -rf /tmp/${DATASET}/derivatives/fmriprep
-      - save_cache:
-         key: ds210-anat-v12-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
-         paths:
-            - /tmp/ds210/work
-
-      - run:
-          name: Run full fMRIPrep on ds000210
-          no_output_timeout: 2h
-          command: |
-            FASTRACK_ARG="--anat-derivatives /tmp/${DATASET}/smriprep-0.6"
-            if [ -f /tmp/.nofasttrack ]; then
-                FASTRACK_ARG=""
-            fi
-            fmriprep-docker -i poldracklab/fmriprep:latest \
-                -e FMRIPREP_DEV 1 \
-                --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                ${FASTRACK_ARG} \
-                --fs-no-reconall --use-syn-sdc \
-                --dummy-scans 1 --sloppy --write-graph \
-                --output-spaces MNI152NLin2009cAsym \
-                --mem_mb 4096 --nthreads 2 -vv
-      - run:
-          name: Checking outputs of fMRIPrep
-          command: |
-            mkdir -p /tmp/${DATASET}/test
-            CHECK_OUTPUTS_FILE="${DATASET}_fasttrack_outputs.txt"
-            if [ -f /tmp/.nofasttrack ]; then
-                CHECK_OUTPUTS_FILE="${DATASET}_outputs.txt"
-            fi
-            find /tmp/${DATASET}/derivatives \( -path */figures -o -path */log \) -prune -o -name "*" -print | sed s+/tmp/${DATASET}/derivatives/++ | sort > /tmp/${DATASET}/test/outputs.out
-            diff /tmp/src/fmriprep/.circleci/${CHECK_OUTPUTS_FILE} /tmp/${DATASET}/test/outputs.out
-            exit $?
-      - run:
-          name: Clean working directory
-          when: on_success
-          command: |
-            sudo chown $(id -un):$(id -gn) -R /tmp/${DATASET}
-            sudo rm -rf /tmp/${DATASET}/work
-      - run:
-          name: Clean working directory
-          when: on_fail
-          command: |
-            sudo chown $(id -un):$(id -gn) -R /tmp/${DATASET}
-            find /tmp/${DATASET}/work \( -name "*.nii.gz" -or -name "*.nii" -or -name "*.gii" -or -name "*.h5" \) \
-                -exec sh -c 'rm -f {}; touch {}' \;
-      - store_artifacts:
-          path: /tmp/ds210
+          path: /tmp/src/fmriprep-rodents/docs/_build/html
 
   deploy_docker_patches:
     machine:
       image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     steps:
 
       - run:
@@ -833,20 +257,20 @@ jobs:
               circleci step halt
             fi
       - checkout:
-          path: /home/circleci/src/fmriprep
+          path: /home/circleci/src/fmriprep-rodents
       - run:
           name: Check whether build should be skipped
           command: |
-            cd /home/circleci/src/fmriprep
+            cd /home/circleci/src/fmriprep-rodents
             if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
               echo "Only docs build"
               circleci step halt
             fi
       - restore_cache:
           keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-
+            - build-v0-{{ .Branch }}-{{ epoch }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-
           paths:
             - /tmp/docker
       - run:
@@ -857,38 +281,38 @@ jobs:
       - run:
           name: Pull images from local registry
           command: |
-            docker pull localhost:5000/fmriprep
-            docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
+            docker pull localhost:5000/fmriprep-rodents
+            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
       - run:
           name: Deploy to Docker Hub
           no_output_timeout: 40m
           command: |
             if [[ -n "$DOCKER_PASS" ]]; then
               docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker tag poldracklab/fmriprep poldracklab/fmriprep:${CIRCLE_BRANCH#docker/}
-              docker push poldracklab/fmriprep:${CIRCLE_BRANCH#docker/}
+              docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
+              docker push poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
             fi
 
   deploy_docker:
     machine:
       image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout:
-          path: /home/circleci/src/fmriprep
+          path: /home/circleci/src/fmriprep-rodents
       - run:
           name: Check whether build should be skipped
           command: |
-            cd /home/circleci/src/fmriprep
+            cd /home/circleci/src/fmriprep-rodents
             if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
               echo "Only docs build"
               circleci step halt
             fi
       - restore_cache:
           keys:
-            - build-v4-{{ .Branch }}-{{ epoch }}
-            - build-v4-{{ .Branch }}-
-            - build-v4-
+            - build-v0-{{ .Branch }}-{{ epoch }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-
           paths:
             - /tmp/docker
       - run:
@@ -899,27 +323,27 @@ jobs:
       - run:
           name: Pull images from local registry
           command: |
-            docker pull localhost:5000/fmriprep
-            docker tag localhost:5000/fmriprep poldracklab/fmriprep:latest
+            docker pull localhost:5000/fmriprep-rodents
+            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
       - run:
           name: Deploy to Docker Hub
           no_output_timeout: 40m
           command: |
             if [[ -n "$DOCKER_PASS" ]]; then
               docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker tag poldracklab/fmriprep poldracklab/fmriprep:unstable
-              docker push poldracklab/fmriprep:unstable
+              docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:unstable
+              docker push poldracklab/fmriprep-rodents:unstable
               if [[ -n "$CIRCLE_TAG" ]]; then
-                docker push poldracklab/fmriprep:latest
-                docker tag poldracklab/fmriprep poldracklab/fmriprep:$CIRCLE_TAG
-                docker push poldracklab/fmriprep:$CIRCLE_TAG
+                docker push poldracklab/fmriprep-rodents:latest
+                docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:$CIRCLE_TAG
+                docker push poldracklab/fmriprep-rodents:$CIRCLE_TAG
               fi
             fi
 
   test_deploy_pypi:
     docker:
       - image: circleci/python:3.7.4
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
       - run:
@@ -932,11 +356,11 @@ jobs:
             virtualenv --python=python build
             source build/bin/activate
             pip install --upgrade "pip>=19.1" numpy
-            echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep/VERSION
+            echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
             python setup.py sdist
             pip wheel --no-deps -w dist/ .
       - store_artifacts:
-          path: /tmp/src/fmriprep/dist
+          path: /tmp/src/fmriprep-rodents/dist
       - run:
           name: Check sdist distribution
           command: |
@@ -948,8 +372,8 @@ jobs:
             source sdist/bin/activate
             pip install --upgrade "pip>=19.1" numpy
             pip install dist/fmriprep*.tar.gz
-            which fmriprep | grep sdist\\/bin
-            INSTALLED_VERSION=$(fmriprep --version)
+            which fmriprep-rodents | grep sdist\\/bin
+            INSTALLED_VERSION=$(fmriprep-rodents --version)
             INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
             INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
             echo "VERSION: \"$THISVERSION\""
@@ -965,8 +389,8 @@ jobs:
             virtualenv --python=python wheel
             source wheel/bin/activate
             pip install dist/fmriprep*.whl
-            which fmriprep | grep wheel\\/bin
-            INSTALLED_VERSION=$(fmriprep --version)
+            which fmriprep-rodents | grep wheel\\/bin
+            INSTALLED_VERSION=$(fmriprep-rodents --version)
             INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
             INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
             echo "VERSION: \"$THISVERSION\""
@@ -985,12 +409,12 @@ jobs:
             python setup.py sdist
             pip wheel --no-deps -w dist/ .
       - store_artifacts:
-          path: /tmp/src/fmriprep/wrapper/dist
+          path: /tmp/src/fmriprep-rodents/wrapper/dist
 
   deploy_pypi:
     docker:
       - image: circleci/python:3.7.4
-    working_directory: /tmp/src/fmriprep
+    working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
       - run:
@@ -1000,7 +424,7 @@ jobs:
             virtualenv --python=python build
             source build/bin/activate
             pip install --upgrade "pip>=19.1"
-            echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep/VERSION
+            echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
             python setup.py sdist
             pip wheel --no-deps -w dist/ .
       - run:
@@ -1053,9 +477,6 @@ workflows:
             branches:
               ignore:
                 - /tests?\/.*/
-                - /ds005\/.*/
-                - /ds054\/.*/
-                - /ds210\/.*/
                 - /docker\/.*/
             tags:
               only: /.*/
@@ -1076,55 +497,6 @@ workflows:
             branches:
               ignore:
                 - /docs?\/.*/
-                - /ds005\/.*/
-                - /ds054\/.*/
-                - /ds210\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
-
-      - ds005:
-          requires:
-            - get_data
-            - build
-          filters:
-            branches:
-              ignore:
-                - /docs?\/.*/
-                - /tests?\/.*/
-                - /ds054\/.*/
-                - /ds210\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
-
-      - ds054:
-          requires:
-            - get_data
-            - build
-          filters:
-            branches:
-              ignore:
-                - /docs?\/.*/
-                - /tests?\/.*/
-                - /ds005\/.*/
-                - /ds210\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
-
-      - ds210:
-          requires:
-            - get_data
-            - build
-          filters:
-            branches:
-              # only: /meepi.*/
-              ignore:
-                - /docs?\/.*/
-                - /tests?\/.*/
-                - /ds005\/.*/
-                - /ds054\/.*/
                 - /docker\/.*/
             tags:
               only: /.*/
@@ -1141,9 +513,6 @@ workflows:
             - test_deploy_pypi
             - test_pytest
             - build_docs
-            - ds005
-            - ds054
-            - ds210
           filters:
             branches:
               only: master
