@@ -15,7 +15,7 @@ def mock_config():
     if not _old_fs:
         os.environ['FREESURFER_HOME'] = mkdtemp()
 
-    filename = Path(pkgrf('fmriprep', 'data/tests/config.toml'))
+    filename = Path(pkgrf('fmriprep_rodents', 'data/tests/config.toml'))
     settings = loads(filename.read_text())
     for sectionname, configs in settings.items():
         if sectionname != 'environment':
@@ -26,7 +26,7 @@ def mock_config():
     config.init_spaces()
 
     config.execution.work_dir = Path(mkdtemp())
-    config.execution.bids_dir = Path(pkgrf('fmriprep', 'data/tests/ds000005')).absolute()
+    config.execution.bids_dir = Path(pkgrf('fmriprep_rodents', 'data/tests/ds000005')).absolute()
     config.execution.init()
 
     yield

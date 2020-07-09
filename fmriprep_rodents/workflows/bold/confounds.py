@@ -61,7 +61,7 @@ def init_bold_confs_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.bold.confounds import init_bold_confs_wf
+            from fmriprep_rodents.workflows.bold.confounds import init_bold_confs_wf
             wf = init_bold_confs_wf(
                 mem_gb=1,
                 metadata={},
@@ -582,7 +582,7 @@ def init_ica_aroma_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.bold.confounds import init_ica_aroma_wf
+            from fmriprep_rodents.workflows.bold.confounds import init_ica_aroma_wf
             wf = init_ica_aroma_wf(
                 mem_gb=3,
                 metadata={'RepetitionTime': 1.0},

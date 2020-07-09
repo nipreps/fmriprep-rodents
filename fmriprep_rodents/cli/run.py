@@ -96,7 +96,7 @@ def main():
 
             crashfolders = [
                 config.execution.output_dir
-                / "fmriprep"
+                / "fmriprep-rodents"
                 / "sub-{}".format(s)
                 / "log"
                 / config.execution.run_uuid
@@ -118,7 +118,7 @@ def main():
             sentry_sdk.capture_message(success_message, level="info")
 
         # Bother users with the boilerplate only iff the workflow went okay.
-        boiler_file = config.execution.output_dir / "fmriprep" / "logs" / "CITATION.md"
+        boiler_file = config.execution.output_dir / "fmriprep-rodents" / "logs" / "CITATION.md"
         if boiler_file.exists():
             if config.environment.exec_env in (
                 "singularity",
@@ -141,12 +141,12 @@ def main():
             dseg_tsv = str(api.get("fsaverage", suffix="dseg", extension=[".tsv"]))
             _copy_any(
                 dseg_tsv,
-                str(config.execution.output_dir / "fmriprep" / "desc-aseg_dseg.tsv"),
+                str(config.execution.output_dir / "fmriprep-rodents" / "desc-aseg_dseg.tsv"),
             )
             _copy_any(
                 dseg_tsv,
                 str(
-                    config.execution.output_dir / "fmriprep" / "desc-aparcaseg_dseg.tsv"
+                    config.execution.output_dir / "fmriprep-rodents" / "desc-aparcaseg_dseg.tsv"
                 ),
             )
         errno = 0
@@ -159,11 +159,11 @@ def main():
             config.execution.participant_label,
             config.execution.output_dir,
             config.execution.run_uuid,
-            config=pkgrf("fmriprep", "data/reports-spec.yml"),
-            packagename="fmriprep",
+            config=pkgrf("fmriprep_rodents", "data/reports-spec.yml"),
+            packagename="fmriprep-rodents",
         )
         write_derivative_description(
-            config.execution.bids_dir, config.execution.output_dir / "fmriprep"
+            config.execution.bids_dir, config.execution.output_dir / "fmriprep-rodents"
         )
 
         if failed_reports and not config.execution.notrack:
@@ -176,6 +176,6 @@ def main():
 
 if __name__ == "__main__":
     raise RuntimeError(
-        "fmriprep/cli/run.py should not be run directly;\n"
-        "Please `pip install` fmriprep and use the `fmriprep` command"
+        "fmriprep_rodents/cli/run.py should not be run directly;\n"
+        "Please `pip install` fmriprep-rodents and use the `fmriprep-rodents` command"
     )

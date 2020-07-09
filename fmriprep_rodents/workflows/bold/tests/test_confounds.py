@@ -1,4 +1,4 @@
-''' Testing module for fmriprep.workflows.bold.confounds '''
+''' Testing module for fmriprep_rodents.workflows.bold.confounds '''
 import pytest
 import os
 import nibabel as nib

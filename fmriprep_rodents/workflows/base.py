@@ -36,8 +36,8 @@ def init_fmriprep_wf():
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.tests import mock_config
-            from fmriprep.workflows.base import init_fmriprep_wf
+            from fmriprep_rodents.workflows.tests import mock_config
+            from fmriprep_rodents.workflows.base import init_fmriprep_wf
             with mock_config():
                 wf = init_fmriprep_wf()
 
@@ -64,7 +64,7 @@ def init_fmriprep_wf():
         single_subject_wf = init_single_subject_wf(subject_id)
 
         single_subject_wf.config['execution']['crashdump_dir'] = str(
-            config.execution.output_dir / "fmriprep" / "-".join(("sub", subject_id))
+            config.execution.output_dir / "fmriprep-rodents" / "-".join(("sub", subject_id))
             / "log" / config.execution.run_uuid
         )
         for node in single_subject_wf._get_all_nodes():
@@ -76,10 +76,10 @@ def init_fmriprep_wf():
             fmriprep_wf.add_nodes([single_subject_wf])
 
         # Dump a copy of the config file into the log directory
-        log_dir = config.execution.output_dir / 'fmriprep' / 'sub-{}'.format(subject_id) \
+        log_dir = config.execution.output_dir / 'fmriprep-rodents' / 'sub-{}'.format(subject_id) \
             / 'log' / config.execution.run_uuid
         log_dir.mkdir(exist_ok=True, parents=True)
-        config.to_filename(log_dir / 'fmriprep.toml')
+        config.to_filename(log_dir / 'fmriprep-rodents.toml')
 
     return fmriprep_wf
 
@@ -100,8 +100,8 @@ def init_single_subject_wf(subject_id):
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.tests import mock_config
-            from fmriprep.workflows.base import init_single_subject_wf
+            from fmriprep_rodents.workflows.tests import mock_config
+            from fmriprep_rodents.workflows.base import init_single_subject_wf
             with mock_config():
                 wf = init_single_subject_wf('01')
 
@@ -154,7 +154,7 @@ def init_single_subject_wf(subject_id):
     workflow = Workflow(name=name)
     workflow.__desc__ = """
 Results included in this manuscript come from preprocessing
-performed using *fMRIPrep* {fmriprep_ver}
+performed using *fMRIPrep-rodents* {fmriprep_ver}
 (@fmriprep1; @fmriprep2; RRID:SCR_016216),
 which is based on *Nipype* {nipype_ver}
 (@nipype1; @nipype2; RRID:SCR_002502).
@@ -168,7 +168,7 @@ Many internal operations of *fMRIPrep* use
 mostly within the functional processing workflow.
 For more details of the pipeline, see [the section corresponding
 to workflows in *fMRIPrep*'s documentation]\
-(https://fmriprep.readthedocs.io/en/latest/workflows.html \
+(https://fmriprep-rodents.readthedocs.io/en/latest/workflows.html \
 "FMRIPrep's documentation").
 
 
@@ -273,7 +273,7 @@ reconall <{config.workflow.run_reconall}>).""")
     # Overwrite ``out_path_base`` of smriprep's DataSinks
     for node in workflow.list_node_names():
         if node.split('.')[-1].startswith('ds_'):
-            workflow.get_node(node).interface.out_path_base = 'fmriprep'
+            workflow.get_node(node).interface.out_path_base = 'fmriprep-rodents'
 
     if anat_only:
         return workflow

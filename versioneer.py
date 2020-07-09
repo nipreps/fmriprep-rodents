@@ -1403,7 +1403,7 @@ def get_versions(verbose=False):
 
     Returns dict with two keys: 'version' and 'full'.
     """
-    ver_file = Path(__file__).parent / 'fmriprep' / 'VERSION'
+    ver_file = Path(__file__).parent / 'fmriprep_rodents' / 'VERSION'
 
     if ver_file.is_file():
         ver = ver_file.read_text().splitlines()[0].strip()

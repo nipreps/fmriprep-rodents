@@ -143,7 +143,7 @@ def _build_parser():
         metavar="FILE",
         help="a JSON file describing custom BIDS input filters using PyBIDS. "
         "For further details, please check out "
-        "https://fmriprep.readthedocs.io/en/%s/faq.html#"
+        "https://fmriprep-rodents.readthedocs.io/en/%s/faq.html#"
         "how-do-I-select-only-certain-files-to-be-input-to-fMRIPrep"
         % (currentv.base_version if is_release else "latest"),
     )
@@ -258,7 +258,7 @@ Non-standard spaces imply specific orientations and sampling grids. \
 Important to note, the ``res-*`` modifier does not define the resolution used for \
 the spatial normalization. To generate no BOLD outputs, use this option without specifying \
 any spatial references. For further details, please check out \
-https://fmriprep.readthedocs.io/en/%s/spaces.html"""
+https://fmriprep-rodents.readthedocs.io/en/%s/spaces.html"""
         % (currentv.base_version if is_release else "latest"),
     )
 
@@ -540,7 +540,7 @@ https://fmriprep.readthedocs.io/en/%s/spaces.html"""
             """\
 You are using fMRIPrep-%s, and a newer version of fMRIPrep is available: %s.
 Please check out our documentation about how and when to upgrade:
-https://fmriprep.readthedocs.io/en/latest/faq.html#upgrading"""
+https://fmriprep-rodents.readthedocs.io/en/latest/faq.html#upgrading"""
             % (currentv, latest),
             file=sys.stderr,
         )
@@ -643,7 +643,7 @@ applied."""
             "Please modify the output path (suggestion: %s)."
             % bids_dir
             / "derivatives"
-            / ("fmriprep-%s" % version.split("+")[0])
+            / ("fmriprep-rodents-%s" % version.split("+")[0])
         )
 
     if bids_dir in work_dir.parents:
@@ -665,7 +665,7 @@ applied."""
         )
 
     # Setup directories
-    config.execution.log_dir = output_dir / "fmriprep" / "logs"
+    config.execution.log_dir = output_dir / "fmriprep-rodents" / "logs"
     # Check and create output and working directories
     config.execution.log_dir.mkdir(exist_ok=True, parents=True)
     output_dir.mkdir(exist_ok=True, parents=True)

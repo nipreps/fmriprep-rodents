@@ -35,7 +35,7 @@ def init_bold_surf_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep.workflows.bold import init_bold_surf_wf
+            from fmriprep_rodents.workflows.bold import init_bold_surf_wf
             wf = init_bold_surf_wf(mem_gb=0.1,
                                    surface_spaces=['fsnative', 'fsaverage5'],
                                    medial_surface_nan=False)
@@ -183,7 +183,7 @@ def init_bold_std_trans_wf(
             :simple_form: yes
 
             from niworkflows.utils.spaces import SpatialReferences
-            from fmriprep.workflows.bold import init_bold_std_trans_wf
+            from fmriprep_rodents.workflows.bold import init_bold_std_trans_wf
             wf = init_bold_std_trans_wf(
                 freesurfer=True,
                 mem_gb=3,
@@ -444,7 +444,7 @@ def init_bold_preproc_trans_wf(mem_gb, omp_nthreads,
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep.workflows.bold import init_bold_preproc_trans_wf
+            from fmriprep_rodents.workflows.bold import init_bold_preproc_trans_wf
             wf = init_bold_preproc_trans_wf(mem_gb=3, omp_nthreads=1)
 
     Parameters
@@ -590,7 +590,7 @@ def init_bold_grayords_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep.workflows.bold import init_bold_grayords_wf
+            from fmriprep_rodents.workflows.bold import init_bold_grayords_wf
             wf = init_bold_grayords_wf(mem_gb=0.1, grayord_density='91k')
 
     Parameters
