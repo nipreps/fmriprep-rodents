@@ -13,4 +13,4 @@ before_install:
   - pip install flake8
 
 script:
-  - flake8 fmriprep wrapper
+  - flake8 fmriprep_rodents wrapper
