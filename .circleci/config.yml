@@ -49,7 +49,10 @@ jobs:
                 docker pull ubuntu:xenial-20200114
                 docker tag ubuntu:xenial-20200114 localhost:5000/ubuntu
                 docker push localhost:5000/ubuntu
-                docker pull poldracklab/fmriprep-rodents:latest
+                docker pull poldracklab/fmriprep-rodents:latest || (
+                        docker pull poldracklab/fmriprep:latest &&
+                        docker tag poldracklab/fmriprep:latest poldracklab/fmriprep-rodents:latest
+                        )
             fi
       - run:
           name: Build Docker image
