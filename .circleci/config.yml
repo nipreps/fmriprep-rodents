@@ -178,7 +178,7 @@ jobs:
             docker run -ti --rm=false \
               -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
               --entrypoint="pytest" poldracklab/fmriprep-rodents:latest \
-              /src/fmriprep-rodents/fmriprep_rodents -svx --doctest-modules
+              /src/fmriprep/fmriprep_rodents -svx --doctest-modules
 
       - run:
           name: Test fmriprep-wrapper (Python 2)
