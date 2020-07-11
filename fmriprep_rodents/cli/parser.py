@@ -538,7 +538,7 @@ https://fmriprep-rodents.readthedocs.io/en/%s/spaces.html"""
     if latest is not None and currentv < latest:
         print(
             """\
-You are using fMRIPrep-%s, and a newer version of fMRIPrep is available: %s.
+You are using fMRIPrep-rodents-%s, and a newer version of fMRIPrep-rodents is available: %s.
 Please check out our documentation about how and when to upgrade:
 https://fmriprep-rodents.readthedocs.io/en/latest/faq.html#upgrading"""
             % (currentv, latest),
