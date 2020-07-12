@@ -6,18 +6,18 @@ A Python module to maintain unique, run-wide *fMRIPrep* settings.
 This module implements the memory structures to keep a consistent, singleton config.
 Settings are passed across processes via filesystem, and a copy of the settings for
 each run and subject is left under
-``<output_dir>/sub-<participant_id>/log/<run_unique_id>/fmriprep.toml``.
+``<output_dir>/sub-<participant_id>/log/<run_unique_id>/fmriprep-rodents.toml``.
 Settings are stored using :abbr:`ToML (Tom's Markup Language)`.
-The module has a :py:func:`~fmriprep.config.to_filename` function to allow writting out
+The module has a :py:func:`~fmriprep_rodents.config.to_filename` function to allow writting out
 the settings to hard disk in *ToML* format, which looks like:
 
-.. literalinclude:: ../fmriprep/data/tests/config.toml
+.. literalinclude:: ../fmriprep_rodents/data/tests/config.toml
    :language: toml
-   :name: fmriprep.toml
+   :name: fmriprep-rodents.toml
    :caption: **Example file representation of fMRIPrep settings**.
 
 This config file is used to pass the settings across processes,
-using the :py:func:`~fmriprep.config.load` function.
+using the :py:func:`~fmriprep_rodents.config.load` function.
 
 Configuration sections
 ----------------------
@@ -37,8 +37,8 @@ graph is built across processes.
 
 .. code-block:: Python
 
-    from fmriprep import config
-    config_file = config.execution.work_dir / '.fmriprep.toml'
+    from fmriprep_rodents import config
+    config_file = config.execution.work_dir / '.fmriprep-rodents.toml'
     config.to_filename(config_file)
     # Call build_workflow(config_file, retval) in a subprocess
     with Manager() as mgr:

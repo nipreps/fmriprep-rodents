@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-""" fmriprep setup script """
+""" fmriprep-rodents setup script """
 import sys
 from setuptools import setup
 import versioneer
@@ -16,7 +16,7 @@ SETUP_REQUIRES += ["wheel"] if "bdist_wheel" in sys.argv else []
 
 if __name__ == "__main__":
     setup(
-        name="fmriprep",
+        name="fmriprep-rodents",
         version=versioneer.get_version(),
         cmdclass=versioneer.get_cmdclass(),
         setup_requires=SETUP_REQUIRES,

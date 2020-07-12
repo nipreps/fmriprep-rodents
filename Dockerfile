@@ -183,8 +183,8 @@ RUN pip install --no-cache-dir "$( grep templateflow fmriprep-setup.cfg | xargs 
 COPY . /src/fmriprep
 ARG VERSION
 # Force static versioning within container
-RUN echo "${VERSION}" > /src/fmriprep/fmriprep/VERSION && \
-    echo "include fmriprep/VERSION" >> /src/fmriprep/MANIFEST.in && \
+RUN echo "${VERSION}" > /src/fmriprep/fmriprep_rodents/VERSION && \
+    echo "include fmriprep_rodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
     pip install --no-cache-dir "/src/fmriprep[all]"
 
 RUN install -m 0755 \
@@ -199,16 +199,16 @@ ENV IS_DOCKER_8395080871=1
 
 RUN ldconfig
 WORKDIR /tmp/
-ENTRYPOINT ["/usr/local/miniconda/bin/fmriprep"]
+ENTRYPOINT ["/usr/local/miniconda/bin/fmriprep-rodents"]
 
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 LABEL org.label-schema.build-date=$BUILD_DATE \
-      org.label-schema.name="fMRIPrep" \
-      org.label-schema.description="fMRIPrep - robust fMRI preprocessing tool" \
+      org.label-schema.name="fMRIPrep-rodents" \
+      org.label-schema.description="fMRIPrep-rodents - robust fMRI preprocessing tool" \
       org.label-schema.url="http://fmriprep.org" \
       org.label-schema.vcs-ref=$VCS_REF \
-      org.label-schema.vcs-url="https://github.com/poldracklab/fmriprep" \
+      org.label-schema.vcs-url="https://github.com/poldracklab/fmriprep-rodents" \
       org.label-schema.version=$VERSION \
       org.label-schema.schema-version="1.0"

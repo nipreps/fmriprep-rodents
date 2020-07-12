@@ -4,7 +4,7 @@ The workflow builder factory method.
 All the checks and the construction of the workflow are done
 inside this function that has pickleable inputs and output
 dictionary (``retval``) to allow isolation using a
-``multiprocessing.Process`` that allows fmriprep to enforce
+``multiprocessing.Process`` that allows fmriprep-rodents to enforce
 a hard-limited memory-scope.
 
 """
@@ -30,7 +30,7 @@ def build_workflow(config_file, retval):
 
     # warn if older results exist: check for dataset_description.json in output folder
     msg = check_pipeline_version(
-        version, output_dir / "fmriprep" / "dataset_description.json"
+        version, output_dir / "fmriprep-rodents" / "dataset_description.json"
     )
     if msg is not None:
         build_log.warning(msg)
@@ -59,8 +59,8 @@ def build_workflow(config_file, retval):
             subject_list,
             config.execution.output_dir,
             config.execution.run_uuid,
-            config=pkgrf("fmriprep", "data/reports-spec.yml"),
-            packagename="fmriprep",
+            config=pkgrf("fmriprep_rodents", "data/reports-spec.yml"),
+            packagename="fmriprep-rodents",
         )
         return retval
 
@@ -119,7 +119,7 @@ def build_boilerplate(config_file, workflow):
     from .. import config
 
     config.load(config_file)
-    logs_path = config.execution.output_dir / "fmriprep" / "logs"
+    logs_path = config.execution.output_dir / "fmriprep-rodents" / "logs"
     boilerplate = workflow.visit_desc()
     citation_files = {
         ext: logs_path / ("CITATION.%s" % ext) for ext in ("bib", "tex", "md", "html")
@@ -147,7 +147,7 @@ def build_boilerplate(config_file, workflow):
             "pandoc",
             "-s",
             "--bibliography",
-            pkgrf("fmriprep", "data/boilerplate.bib"),
+            pkgrf("fmriprep_rodents", "data/boilerplate.bib"),
             "--filter",
             "pandoc-citeproc",
             "--metadata",
@@ -172,7 +172,7 @@ def build_boilerplate(config_file, workflow):
             "pandoc",
             "-s",
             "--bibliography",
-            pkgrf("fmriprep", "data/boilerplate.bib"),
+            pkgrf("fmriprep_rodents", "data/boilerplate.bib"),
             "--natbib",
             str(citation_files["md"]),
             "-o",
@@ -188,4 +188,4 @@ def build_boilerplate(config_file, workflow):
                 "Could not generate CITATION.tex file:\n%s", " ".join(cmd)
             )
         else:
-            copyfile(pkgrf("fmriprep", "data/boilerplate.bib"), citation_files["bib"])
+            copyfile(pkgrf("fmriprep_rodents", "data/boilerplate.bib"), citation_files["bib"])

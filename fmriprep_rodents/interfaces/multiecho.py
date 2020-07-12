@@ -63,7 +63,7 @@ class T2SMap(CommandLine):
 
     Example
     =======
-    >>> from fmriprep.interfaces import multiecho
+    >>> from fmriprep_rodents.interfaces import multiecho
     >>> t2smap = multiecho.T2SMap()
     >>> t2smap.inputs.in_files = ['sub-01_run-01_echo-1_bold.nii.gz', \
                                   'sub-01_run-01_echo-2_bold.nii.gz', \
