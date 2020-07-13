@@ -11,7 +11,7 @@ from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.utility import KeySelect
 
 from smriprep.utils.misc import apply_lut as _apply_bids_lut
-from smriprep.workflows.anat import init_anat_template_wf
+from smriprep.workflows.anatomical import init_anat_template_wf
 from smriprep.workflows.norm import init_anat_norm_wf
 from smriprep.workflows.outputs import init_anat_reports_wf, init_anat_derivatives_wf
 

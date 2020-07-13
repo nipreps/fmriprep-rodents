@@ -122,7 +122,7 @@ def init_single_subject_wf(subject_id):
     from niworkflows.utils.bids import collect_data
     from niworkflows.utils.misc import fix_multi_T1w_source_name
     from niworkflows.utils.spaces import Reference
-    from smriprep.workflows.anatomical import init_anat_preproc_wf
+    from ..patch.workflows.anatomical import init_anat_preproc_wf
 
     name = "single_subject_%s_wf" % subject_id
     subject_data = collect_data(
