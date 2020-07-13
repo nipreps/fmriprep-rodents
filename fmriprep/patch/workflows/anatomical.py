@@ -177,7 +177,7 @@ BIDS dataset."""
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['t2w_preproc', 't2w_mask', 't2w_dseg', 't2w_tpms',
                 'std_preproc', 'std_mask', 'std_dseg', 'std_tpms',
-                'anat2std_xfm', 'std2anat_xfm', 'template'],
+                'anat2std_xfm', 'std2anat_xfm', 'template']),
         name='outputnode')
 
     # Connect reportlets workflows
