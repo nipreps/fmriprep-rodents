@@ -25,7 +25,6 @@ LOGGER = logging.getLogger('nipype.workflow')
 def init_anat_preproc_wf(
         *,
         bids_root,
-        hires,
         longitudinal,
         t2w,
         omp_nthreads,
@@ -46,7 +45,6 @@ def init_anat_preproc_wf(
       - Brain extraction and INU (bias field) correction.
       - Brain tissue segmentation.
       - Spatial normalization to standard spaces.
-      - Surface reconstruction with FreeSurfer_.
     .. include:: ../links.rst
     Workflow Graph
         .. workflow::
@@ -56,15 +54,13 @@ def init_anat_preproc_wf(
             from smriprep.workflows.anatomical import init_anat_preproc_wf
             wf = init_anat_preproc_wf(
                 bids_root='.',
-                freesurfer=True,
-                hires=True,
                 longitudinal=False,
-                t1w=['t1w.nii.gz'],
+                t2w=['t2w.nii.gz'],
                 omp_nthreads=1,
                 output_dir='.',
                 skull_strip_mode='force',
                 skull_strip_template=Reference('OASIS30ANTs'),
-                spaces=SpatialReferences(spaces=['MNI152NLin2009cAsym', 'fsaverage5']),
+                spaces=SpatialReferences(spaces=['WHS']),
             )
     Parameters
     ----------
@@ -73,11 +69,6 @@ def init_anat_preproc_wf(
     existing_derivatives : :obj:`dict` or None
         Dictionary mapping output specification attribute names and
         paths to corresponding derivatives.
-    freesurfer : :obj:`bool`
-        Enable FreeSurfer surface reconstruction (increases runtime by 6h,
-        at the very least)
-    hires : :obj:`bool`
-        Enable sub-millimeter preprocessing in FreeSurfer
     longitudinal : :obj:`bool`
         Create unbiased structural template, regardless of number of inputs
         (may increase runtime)
@@ -146,22 +137,11 @@ def init_anat_preproc_wf(
         into standard space.
     std2anat_xfm
         Inverse transform of the above.
-    subject_id
-        FreeSurfer subject ID
-    t1w2fsnative_xfm
-        LTA-style affine matrix translating from T1w to
-        FreeSurfer-conformed subject space
-    fsnative2t1w_xfm
-        LTA-style affine matrix translating from FreeSurfer-conformed
-        subject space to T1w
-    surfaces
-        GIFTI surfaces (gray/white boundary, midthickness, pial, inflated)
     See Also
     --------
     * :py:func:`~niworkflows.anat.ants.init_brain_extraction_wf`
     * :py:func:`~smriprep.workflows.surfaces.init_surface_recon_wf`
     """
-    freesurfer = False
     workflow = Workflow(name=name)
     num_t2w = len(t2w)
     desc = """Anatomical data preprocessing
@@ -171,7 +151,7 @@ A total of {num_t2w} T2-weighted (T2w) images were found within the input
 BIDS dataset."""
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['t2w', 'roi', 'flair', 'subjects_dir', 'subject_id']),
+        niu.IdentityInterface(fields=['t2w', 'roi']),
         name='inputnode')
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -182,7 +162,7 @@ BIDS dataset."""
 
     # Connect reportlets workflows
     anat_reports_wf = init_anat_reports_wf(
-        freesurfer=freesurfer,
+        freesurfer=False,
         output_dir=output_dir,
     )
     workflow.connect([
@@ -388,25 +368,24 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
         ]),
     ])
 
-    if not freesurfer:  # Flag --fs-no-reconall is set - return
-        # Brain tissue segmentation - FAST produces: 0 (bg), 1 (wm), 2 (csf), 3 (gm)
-        t1w_dseg = pe.Node(fsl.FAST(segments=True, no_bias=True, probability_maps=True),
-                           name='t1w_dseg', mem_gb=3)
-        lut_t1w_dseg.inputs.lut = (0, 3, 1, 2)  # Maps: 0 -> 0, 3 -> 1, 1 -> 2, 2 -> 3.
-        fast2bids = pe.Node(niu.Function(function=_probseg_fast2bids), name="fast2bids",
-                            run_without_submitting=True)
+    # Brain tissue segmentation - FAST produces: 0 (bg), 1 (wm), 2 (csf), 3 (gm)
+    t1w_dseg = pe.Node(fsl.FAST(segments=True, no_bias=True, probability_maps=True),
+                       name='t1w_dseg', mem_gb=3)
+    lut_t1w_dseg.inputs.lut = (0, 3, 1, 2)  # Maps: 0 -> 0, 3 -> 1, 1 -> 2, 2 -> 3.
+    fast2bids = pe.Node(niu.Function(function=_probseg_fast2bids), name="fast2bids",
+                        run_without_submitting=True)
 
-        workflow.connect([
-            (brain_extraction_wf, buffernode, [
-                (('outputnode.out_brain', _pop), 't2w_brain'),
-                ('outputnode.out_mask', 't2w_mask')]),
-            (buffernode, t1w_dseg, [('t2w_brain', 'in_files')]),
-            (t1w_dseg, lut_t1w_dseg, [('partial_volume_map', 'in_dseg')]),
-            (t1w_dseg, fast2bids, [('partial_volume_files', 'inlist')]),
-            (fast2bids, anat_norm_wf, [('out', 'inputnode.moving_tpms')]),
-            (fast2bids, outputnode, [('out', 't2w_tpms')]),
-        ])
-        return workflow
+    workflow.connect([
+        (brain_extraction_wf, buffernode, [
+            (('outputnode.out_brain', _pop), 't2w_brain'),
+            ('outputnode.out_mask', 't2w_mask')]),
+        (buffernode, t1w_dseg, [('t2w_brain', 'in_files')]),
+        (t1w_dseg, lut_t1w_dseg, [('partial_volume_map', 'in_dseg')]),
+        (t1w_dseg, fast2bids, [('partial_volume_files', 'inlist')]),
+        (fast2bids, anat_norm_wf, [('out', 'inputnode.moving_tpms')]),
+        (fast2bids, outputnode, [('out', 't2w_tpms')]),
+    ])
+    return workflow
 
 
 def _pop(inlist):
