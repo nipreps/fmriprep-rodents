@@ -211,10 +211,10 @@ jobs:
                     --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
                     /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
                     --fs-subjects-dir /tmp/${DATASET}/freesurfer \
-                    --skull-strip-template OASIS30ANTs:res-1 \
-                    --output-spaces MNI152NLin2009cAsym MNI152NLin6Asym \
+                    --skull-strip-template WHS:res-1 \
+                    --output-spaces \
                     --sloppy --write-graph --mem_mb 4096 \
-                    --nthreads 2 --anat-only -vv
+                    --nthreads 2 --anat-only -vv --skip-bids-validation
 
   test_pytest:
     machine:
