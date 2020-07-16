@@ -299,7 +299,7 @@ tasks and sessions), the following preprocessing was performed.
               ('outputnode.t2w_tpms', 'inputnode.t1w_tpms'),
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
-              ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm'),
+              ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
               # Undefined if --fs-no-reconall, but this is safe
             #   ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
             #   ('outputnode.subject_id', 'inputnode.subject_id'),
