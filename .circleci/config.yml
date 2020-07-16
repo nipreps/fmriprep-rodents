@@ -118,13 +118,10 @@ jobs:
            name: Get single echo rodent data
            command: |
              mkdir -p /tmp/data
-             if [[ ! -d /tmp/data/rodent-se ]]; then
-               wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-                 -O rodent-se.tar.gz "https://stanford.box.com/shared/static/ei6qtu81y1zx9fxii11svvm73n3884fl.gz"
+             rm -rf /tmp/data/rodent-se/
+             wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
+               -O rodent-se.tar.gz "https://stanford.box.com/shared/static/ei6qtu81y1zx9fxii11svvm73n3884fl.gz"
              tar xvzf rodent-se.tar.gz -C /tmp/data/
-             else
-               echo "Single echo rodent data was cached"
-             fi
       - save_cache:
          key: data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
          paths:
@@ -135,10 +132,18 @@ jobs:
             mkdir -p /tmp/fslicense
             cd /tmp/fslicense
             echo "cHJpbnRmICJrcnp5c3p0b2YuZ29yZ29sZXdza2lAZ21haWwuY29tXG41MTcyXG4gKkN2dW12RVYzelRmZ1xuRlM1Si8yYzFhZ2c0RVxuIiA+IGxpY2Vuc2UudHh0Cg==" | base64 -d | sh
+      - run:
+          name: Create Nipype config files
+          command: |
+            mkdir -p /tmp/rodent-se
+            printf "[execution]\nstop_on_first_crash = true\n" > /tmp/rodent-se/nipype.cfg
+            echo "poll_sleep_duration = 0.01" >> /tmp/rodent-se/nipype.cfg
+            echo "hash_method = content" >> /tmp/rodent-se/nipype.cfg
       - persist_to_workspace:
           root: /tmp
           paths:
             - fslicense
+            - rodent-se/nipype.cfg
 
   test_rodent:
     machine:
@@ -191,7 +196,7 @@ jobs:
             export PY3=$(pyenv versions | grep '3\.' |
                          sed -e 's/.* 3\./3./' -e 's/ .*//')
             pyenv local $PY3
-            mkdir -p /tmp/rodent-se/derivatives
+            mkdir -p /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             pip install --upgrade pip setuptools
@@ -205,11 +210,11 @@ jobs:
                 sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
                 sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            fmriprep-docker -i poldracklab/fmriprep:latest \
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest \
                     -e FMRIPREP_DEV 1 -u $(id -u) \
                     --network none \
                     --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                    /tmp/${DATASET} /tmp/${DATASET}/derivatives participant \
+                    /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
                     --skull-strip-template WHS:res-1 \
                     --output-spaces \
                     --sloppy --write-graph --mem_mb 4096 \
@@ -246,7 +251,7 @@ jobs:
             - /tmp/docker
       - restore_cache:
           keys:
-            - data-v0-{{ .Revision }}
+            - data-v0-{{ .Branch }}-{{ .Revision }}
       - run:
           name: Set-up a Docker registry
           command: |
