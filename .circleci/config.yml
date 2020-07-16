@@ -179,7 +179,10 @@ jobs:
             - /tmp/docker
       - restore_cache:
           keys:
-            - data-v0-{{ .Revision }}
+            - data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+            - data-v0-{{ .Branch }}-{{ .Revision }}-
+            - data-v0-{{ .Branch }}-
+            - data-v0-
       - run:
           name: Set-up a Docker registry
           command: |
