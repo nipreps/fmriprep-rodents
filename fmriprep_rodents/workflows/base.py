@@ -147,9 +147,9 @@ def init_single_subject_wf(subject_id):
                 subject_id, task_id if task_id else '<all>')
         )
 
-    if not subject_data['t1w']:
-        raise Exception("No T1w images found for participant {}. "
-                        "All workflows require T1w images.".format(subject_id))
+    # if not subject_data['t1w']:
+    #     raise Exception("No T1w images found for participant {}. "
+    #                     "All workflows require T1w images.".format(subject_id))
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """
@@ -238,8 +238,6 @@ reconall <{config.workflow.run_reconall}>).""")
         bids_root=str(config.execution.bids_dir),
         debug=config.execution.debug is True,
         existing_derivatives=anat_derivatives,
-        freesurfer=config.workflow.run_reconall,
-        hires=config.workflow.hires,
         longitudinal=config.workflow.longitudinal,
         omp_nthreads=config.nipype.omp_nthreads,
         output_dir=output_dir,
@@ -248,7 +246,7 @@ reconall <{config.workflow.run_reconall}>).""")
         skull_strip_template=Reference.from_string(
             config.workflow.skull_strip_template)[0],
         spaces=spaces,
-        t1w=subject_data['t1w'],
+        t2w=subject_data['t2w'],
     )
 
     workflow.connect([
@@ -293,20 +291,20 @@ tasks and sessions), the following preprocessing was performed.
 
         workflow.connect([
             (anat_preproc_wf, func_preproc_wf,
-             [('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
-              ('outputnode.t1w_mask', 'inputnode.t1w_mask'),
-              ('outputnode.t1w_dseg', 'inputnode.t1w_dseg'),
-              ('outputnode.t1w_aseg', 'inputnode.t1w_aseg'),
-              ('outputnode.t1w_aparc', 'inputnode.t1w_aparc'),
-              ('outputnode.t1w_tpms', 'inputnode.t1w_tpms'),
+             [('outputnode.t2w_preproc', 'inputnode.t1w_preproc'),
+              ('outputnode.t2w_mask', 'inputnode.t1w_mask'),
+              ('outputnode.t2w_dseg', 'inputnode.t1w_dseg'),
+            #   ('outputnode.t2w_aseg', 'inputnode.t1w_aseg'),
+            #   ('outputnode.t2w_aparc', 'inputnode.t1w_aparc'),
+              ('outputnode.t2w_tpms', 'inputnode.t1w_tpms'),
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm'),
               # Undefined if --fs-no-reconall, but this is safe
-              ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
-              ('outputnode.subject_id', 'inputnode.subject_id'),
-              ('outputnode.t1w2fsnative_xfm', 'inputnode.t1w2fsnative_xfm'),
-              ('outputnode.fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm')]),
+            #   ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
+            #   ('outputnode.subject_id', 'inputnode.subject_id'),
+            #   ('outputnode.t1w2fsnative_xfm', 'inputnode.t1w2fsnative_xfm'),
+            #   ('outputnode.fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm')]),
         ])
     return workflow
 
