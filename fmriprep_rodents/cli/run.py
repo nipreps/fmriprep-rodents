@@ -160,7 +160,7 @@ def main():
             config.execution.output_dir,
             config.execution.run_uuid,
             config=pkgrf("fmriprep_rodents", "data/reports-spec.yml"),
-            packagename="fmriprep-rodents",
+            packagename="fmriprep_rodents",
         )
         write_derivative_description(
             config.execution.bids_dir, config.execution.output_dir / "fmriprep-rodents"
