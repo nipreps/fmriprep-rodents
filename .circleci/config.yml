@@ -215,10 +215,9 @@ jobs:
                 sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
             fmriprep-docker -i poldracklab/fmriprep-rodents:latest \
                     -e FMRIPREP_DEV 1 -u $(id -u) \
-                    --network none \
                     --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
                     /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                    --skull-strip-template WHS:res-1 \
+                    --skull-strip-template WHS:res-2 \
                     --output-spaces \
                     --sloppy --write-graph --mem_mb 4096 \
                     --nthreads 2 --anat-only -vv --skip-bids-validation
