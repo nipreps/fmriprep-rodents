@@ -120,8 +120,8 @@ def init_single_subject_wf(subject_id):
     from niworkflows.interfaces.bids import BIDSInfo, BIDSDataGrabber
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.utils.bids import collect_data
-    from niworkflows.utils.misc import fix_multi_T1w_source_name
     from niworkflows.utils.spaces import Reference
+    from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
     name = "single_subject_%s_wf" % subject_id
@@ -250,21 +250,17 @@ reconall <{config.workflow.run_reconall}>).""")
     )
 
     workflow.connect([
-        (inputnode, anat_preproc_wf, [('subjects_dir', 'inputnode.subjects_dir')]),
-        (bidssrc, bids_info, [(('t1w', fix_multi_T1w_source_name), 'in_file')]),
+        (bidssrc, bids_info, [(('t1w', fix_multi_source_name), 'in_file')]),
         (inputnode, summary, [('subjects_dir', 'subjects_dir')]),
         (bidssrc, summary, [('t1w', 't1w'),
                             ('t2w', 't2w'),
                             ('bold', 'bold')]),
         (bids_info, summary, [('subject', 'subject_id')]),
-        (bids_info, anat_preproc_wf, [(('subject', _prefix), 'inputnode.subject_id')]),
-        (bidssrc, anat_preproc_wf, [('t1w', 'inputnode.t1w'),
-                                    ('t2w', 'inputnode.t2w'),
-                                    ('roi', 'inputnode.roi'),
-                                    ('flair', 'inputnode.flair')]),
-        (bidssrc, ds_report_summary, [(('t1w', fix_multi_T1w_source_name), 'source_file')]),
+        (bidssrc, anat_preproc_wf, [('t2w', 'inputnode.t2w'),
+                                    ('roi', 'inputnode.roi')]),
+        (bidssrc, ds_report_summary, [(('t2w', fix_multi_source_name), 'source_file')]),
         (summary, ds_report_summary, [('out_report', 'in_file')]),
-        (bidssrc, ds_report_about, [(('t1w', fix_multi_T1w_source_name), 'source_file')]),
+        (bidssrc, ds_report_about, [(('t1w', fix_multi_source_name), 'source_file')]),
         (about, ds_report_about, [('out_report', 'in_file')]),
     ])
 
@@ -294,17 +290,10 @@ tasks and sessions), the following preprocessing was performed.
              [('outputnode.t2w_preproc', 'inputnode.t1w_preproc'),
               ('outputnode.t2w_mask', 'inputnode.t1w_mask'),
               ('outputnode.t2w_dseg', 'inputnode.t1w_dseg'),
-            #   ('outputnode.t2w_aseg', 'inputnode.t1w_aseg'),
-            #   ('outputnode.t2w_aparc', 'inputnode.t1w_aparc'),
               ('outputnode.t2w_tpms', 'inputnode.t1w_tpms'),
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
-              # Undefined if --fs-no-reconall, but this is safe
-            #   ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
-            #   ('outputnode.subject_id', 'inputnode.subject_id'),
-            #   ('outputnode.t1w2fsnative_xfm', 'inputnode.t1w2fsnative_xfm'),
-            #   ('outputnode.fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm')]),
         ])
     return workflow
 
