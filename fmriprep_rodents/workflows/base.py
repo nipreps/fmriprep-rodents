@@ -117,10 +117,11 @@ def init_single_subject_wf(subject_id):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.bids import BIDSInfo, BIDSDataGrabber
+    from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.utils.bids import collect_data
     from niworkflows.utils.spaces import Reference
+    from ..patch.interfaces import BIDSDataGrabber
     from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
