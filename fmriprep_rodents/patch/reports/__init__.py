@@ -22,6 +22,27 @@ class Report(_Report):
         self.index(settings["sections"])
 
 
+def run_reports(
+    out_dir,
+    subject_label,
+    run_uuid,
+    config=None,
+    reportlets_dir=None,
+    packagename=None,
+):
+    """
+    Run the reports.
+    """
+    return Report(
+        out_dir,
+        run_uuid,
+        config=config,
+        subject_id=subject_label,
+        packagename=packagename,
+        reportlets_dir=reportlets_dir,
+    ).generate_report()
+
+
 def generate_reports(
     subject_list, output_dir, run_uuid, config=None, work_dir=None, packagename=None
 ):
@@ -30,14 +51,14 @@ def generate_reports(
     if work_dir is not None:
         reportlets_dir = Path(work_dir) / "reportlets"
     report_errors = [
-        Report(
+        run_reports(
             output_dir,
             subject_label,
             run_uuid,
             config=config,
             packagename=packagename,
             reportlets_dir=reportlets_dir,
-        ).generate_report()
+        )
         for subject_label in subject_list
     ]
 
