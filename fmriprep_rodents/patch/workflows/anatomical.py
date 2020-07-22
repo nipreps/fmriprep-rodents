@@ -321,7 +321,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     workflow.connect([
         (lut_t1w_dseg, anat_norm_wf, [
             ('out', 'inputnode.moving_segmentation')]),
-        (lut_t1w_dseg, outputnode, [('out', 't1w_dseg')]),
+        (lut_t1w_dseg, outputnode, [('out', 't2w_dseg')]),
     ])
 
     # Connect reportlets
