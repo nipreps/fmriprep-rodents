@@ -151,7 +151,7 @@ def main():
             )
         errno = 0
     finally:
-        from niworkflows.reports import generate_reports
+        from ..patch.reports import generate_reports
         from pkg_resources import resource_filename as pkgrf
 
         # Generate reports phase
@@ -177,5 +177,5 @@ def main():
 if __name__ == "__main__":
     raise RuntimeError(
         "fmriprep_rodents/cli/run.py should not be run directly;\n"
-        "Please `pip install` fmriprep-rodents and use the `fmriprep-rodents` command"
+        "Please `pip install` fmriprep-rodents and use the `fmriprep_rodents` command"
     )
