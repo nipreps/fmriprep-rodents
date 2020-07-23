@@ -114,6 +114,14 @@ jobs:
             - data-v0-{{ .Branch }}-{{ .Revision }}
             - data-v0-{{ .Branch }}
             - data-v0-
+      - run:
+           name: Get single echo rodent data
+           command: |
+             mkdir -p /tmp/data
+             rm -rf /tmp/data/rodent-se/
+             wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
+               -O rodent-se.tar.gz "https://stanford.box.com/shared/static/ei6qtu81y1zx9fxii11svvm73n3884fl.gz"
+             tar xvzf rodent-se.tar.gz -C /tmp/data/
       - save_cache:
          key: data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
          paths:
@@ -124,10 +132,95 @@ jobs:
             mkdir -p /tmp/fslicense
             cd /tmp/fslicense
             echo "cHJpbnRmICJrcnp5c3p0b2YuZ29yZ29sZXdza2lAZ21haWwuY29tXG41MTcyXG4gKkN2dW12RVYzelRmZ1xuRlM1Si8yYzFhZ2c0RVxuIiA+IGxpY2Vuc2UudHh0Cg==" | base64 -d | sh
+      - run:
+          name: Create Nipype config files
+          command: |
+            mkdir -p /tmp/rodent-se
+            printf "[execution]\nstop_on_first_crash = true\n" > /tmp/rodent-se/nipype.cfg
+            echo "poll_sleep_duration = 0.01" >> /tmp/rodent-se/nipype.cfg
+            echo "hash_method = content" >> /tmp/rodent-se/nipype.cfg
       - persist_to_workspace:
           root: /tmp
           paths:
             - fslicense
+            - rodent-se/nipype.cfg
+
+  test_rodent:
+    machine:
+      image: circleci/classic:201711-01
+    working_directory: /tmp/rodent-se
+    environment:
+      - FS_LICENSE: /tmp/fslicense/license.txt
+      - DATASET: rodent-se
+    steps:
+      - checkout:
+          path: /home/circleci/src/fmriprep-rodents
+      - run:
+          name: Check whether build should be skipped
+          command: |
+            cd /home/circleci/src/fmriprep-rodents
+            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
+              echo "Only docs build"
+              circleci step halt
+            fi
+            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?tests\]' )" != "" ]]; then
+              echo "Skipping pytest job"
+              circleci step halt
+            fi
+
+      - attach_workspace:
+          at: /tmp
+      - restore_cache:
+          keys:
+            - build-v0-{{ .Branch }}-{{ epoch }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-
+          paths:
+            - /tmp/docker
+      - restore_cache:
+          keys:
+            - data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+            - data-v0-{{ .Branch }}-{{ .Revision }}-
+            - data-v0-{{ .Branch }}-
+            - data-v0-
+      - run:
+          name: Set-up a Docker registry
+          command: |
+            docker run -d -p 5000:5000 --restart=always --name=registry \
+                -v /tmp/docker:/var/lib/registry registry:2
+      - run:
+          name: Pull images from local registry
+          command: |
+            docker pull localhost:5000/fmriprep-rodents
+            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+      - run:
+          name: Setting up test
+          command: |
+            export PY3=$(pyenv versions | grep '3\.' |
+                         sed -e 's/.* 3\./3./' -e 's/ .*//')
+            pyenv local $PY3
+            mkdir -p /tmp/${DATASET}/derivatives
+            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
+            sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
+            pip install --upgrade pip setuptools
+            pip install --upgrade /tmp/src/fmriprep-rodents/wrapper/
+      - run:
+          name: Run anatomical workflow on rodents
+          no_output_timeout: 2h
+          command: |
+            mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/derivatives
+            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
+                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
+            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
+                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest \
+                    -e FMRIPREP_DEV 1 -u $(id -u) \
+                    --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
+                    /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
+                    --skull-strip-template WHS:res-2 \
+                    --output-spaces \
+                    --sloppy --write-graph --mem_mb 4096 \
+                    --nthreads 2 --anat-only -vv --skip-bids-validation
 
   test_pytest:
     machine:
@@ -160,7 +253,7 @@ jobs:
             - /tmp/docker
       - restore_cache:
           keys:
-            - data-v0-{{ .Revision }}
+            - data-v0-{{ .Branch }}-{{ .Revision }}
       - run:
           name: Set-up a Docker registry
           command: |
@@ -500,6 +593,19 @@ workflows:
             branches:
               ignore:
                 - /docs?\/.*/
+                - /docker\/.*/
+            tags:
+              only: /.*/
+
+      - test_rodent:
+          requires:
+            - get_data
+            - build
+          filters:
+            branches:
+              ignore:
+                - /docs?\/.*/
+                - /tests?\/.*/
                 - /docker\/.*/
             tags:
               only: /.*/
