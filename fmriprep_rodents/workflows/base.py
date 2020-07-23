@@ -251,7 +251,7 @@ reconall <{config.workflow.run_reconall}>).""")
     )
 
     workflow.connect([
-        (bidssrc, bids_info, [(('t1w', fix_multi_source_name), 'in_file')]),
+        (bidssrc, bids_info, [(('t2w', fix_multi_source_name), 'in_file')]),
         (inputnode, summary, [('subjects_dir', 'subjects_dir')]),
         (bidssrc, summary, [('t1w', 't1w'),
                             ('t2w', 't2w'),
@@ -261,7 +261,7 @@ reconall <{config.workflow.run_reconall}>).""")
                                     ('roi', 'inputnode.roi')]),
         (bidssrc, ds_report_summary, [(('t2w', fix_multi_source_name), 'source_file')]),
         (summary, ds_report_summary, [('out_report', 'in_file')]),
-        (bidssrc, ds_report_about, [(('t1w', fix_multi_source_name), 'source_file')]),
+        (bidssrc, ds_report_about, [(('t2w', fix_multi_source_name), 'source_file')]),
         (about, ds_report_about, [('out_report', 'in_file')]),
     ])
 
