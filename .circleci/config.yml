@@ -145,7 +145,7 @@ jobs:
             - fslicense
             - rodent-se/nipype.cfg
 
-  test_rodent:
+  test_rodent_anat:
     machine:
       image: circleci/classic:201711-01
     working_directory: /tmp/rodent-se
@@ -221,6 +221,8 @@ jobs:
                     --output-spaces \
                     --sloppy --write-graph --mem_mb 4096 \
                     --nthreads 2 --anat-only -vv --skip-bids-validation
+      - store_artifacts:
+          path: /tmp/rodent-se/derivatives
 
   test_pytest:
     machine:
@@ -597,7 +599,7 @@ workflows:
             tags:
               only: /.*/
 
-      - test_rodent:
+      - test_rodent_anat:
           requires:
             - get_data
             - build
