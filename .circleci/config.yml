@@ -199,6 +199,85 @@ jobs:
             export PY3=$(pyenv versions | grep '3\.' |
                          sed -e 's/.* 3\./3./' -e 's/ .*//')
             pyenv local $PY3
+            mkdir -p /tmp/${DATASET}-anat/derivatives
+            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives
+            sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives
+            pip install --upgrade pip setuptools
+            pip install --upgrade /tmp/src/fmriprep-rodents/wrapper/
+      - run:
+          name: Run anatomical workflow on rodents
+          no_output_timeout: 2h
+          command: |
+            mkdir -p /tmp/${DATASET}-anat/work /tmp/${DATASET}-anat/derivatives
+            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives && \
+                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives
+            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}-anat/work && \
+                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}-anat/work
+            fmriprep-docker -i poldracklab/fmriprep-rodents:latest \
+                    -e FMRIPREP_DEV 1 -u $(id -u) \
+                    --config $PWD/nipype.cfg -w /tmp/${DATASET}-anat/work \
+                    /tmp/data/${DATASET} /tmp/${DATASET}-anat/derivatives participant \
+                    --skull-strip-template WHS:res-2 \
+                    --output-spaces \
+                    --sloppy --write-graph --mem_mb 4096 \
+                    --nthreads 2 --anat-only -vv --skip-bids-validation
+      - store_artifacts:
+          path: /tmp/rodent-se-anat/derivatives
+
+  test_rodent:
+    machine:
+      image: circleci/classic:201711-01
+    working_directory: /tmp/rodent-se
+    environment:
+      - FS_LICENSE: /tmp/fslicense/license.txt
+      - DATASET: rodent-se
+    steps:
+      - checkout:
+          path: /home/circleci/src/fmriprep-rodents
+      - run:
+          name: Check whether build should be skipped
+          command: |
+            cd /home/circleci/src/fmriprep-rodents
+            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
+              echo "Only docs build"
+              circleci step halt
+            fi
+            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?tests\]' )" != "" ]]; then
+              echo "Skipping pytest job"
+              circleci step halt
+            fi
+
+      - attach_workspace:
+          at: /tmp
+      - restore_cache:
+          keys:
+            - build-v0-{{ .Branch }}-{{ epoch }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-
+          paths:
+            - /tmp/docker
+      - restore_cache:
+          keys:
+            - data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+            - data-v0-{{ .Branch }}-{{ .Revision }}-
+            - data-v0-{{ .Branch }}-
+            - data-v0-
+      - run:
+          name: Set-up a Docker registry
+          command: |
+            docker run -d -p 5000:5000 --restart=always --name=registry \
+                -v /tmp/docker:/var/lib/registry registry:2
+      - run:
+          name: Pull images from local registry
+          command: |
+            docker pull localhost:5000/fmriprep-rodents
+            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+      - run:
+          name: Setting up test
+          command: |
+            export PY3=$(pyenv versions | grep '3\.' |
+                         sed -e 's/.* 3\./3./' -e 's/ .*//')
+            pyenv local $PY3
             mkdir -p /tmp/${DATASET}/derivatives
             sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
             sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
@@ -217,12 +296,12 @@ jobs:
                     -e FMRIPREP_DEV 1 -u $(id -u) \
                     --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
                     /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                    --skull-strip-template WHS:res-2 \
-                    --output-spaces \
+                    --skull-strip-template WHS \
                     --sloppy --write-graph --mem_mb 4096 \
-                    --nthreads 2 --anat-only -vv --skip-bids-validation
+                    --nthreads 2 -vv --skip-bids-validation --fs-no-reconall
       - store_artifacts:
           path: /tmp/rodent-se/derivatives
+
 
   test_pytest:
     machine:
@@ -600,6 +679,19 @@ workflows:
               only: /.*/
 
       - test_rodent_anat:
+          requires:
+            - get_data
+            - build
+          filters:
+            branches:
+              ignore:
+                - /docs?\/.*/
+                - /tests?\/.*/
+                - /docker\/.*/
+            tags:
+              only: /.*/
+
+      - test_rodent:
           requires:
             - get_data
             - build
