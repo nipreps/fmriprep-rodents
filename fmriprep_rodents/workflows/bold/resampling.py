@@ -728,7 +728,7 @@ def _select_template(template):
     template, specs = template
     template = template.split(':')[0]  # Drop any cohort modifier if present
     specs = specs.copy()
-    specs['suffix'] = specs.get('suffix', 'T1w')
+    specs['suffix'] = specs.get('suffix', 'T2star')
 
     # Sanitize resolution
     res = specs.pop('res', None) or specs.pop('resolution', None) or 'native'
