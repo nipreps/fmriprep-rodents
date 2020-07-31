@@ -20,10 +20,10 @@ jobs:
 
       - restore_cache:
           keys:
-            - build-v0-{{ .Branch }}-{{ epoch }}
-            - build-v0-{{ .Branch }}-
-            - build-v0-master-
-            - build-v0-
+            - build-v1-{{ .Branch }}-{{ epoch }}
+            - build-v1-{{ .Branch }}-
+            - build-v1-master-
+            - build-v1-
           paths:
             - /tmp/docker
       - run:
@@ -99,7 +99,7 @@ jobs:
           paths:
             - src/fmriprep-rodents
       - save_cache:
-         key: build-v0-{{ .Branch }}-{{ epoch }}
+         key: build-v1-{{ .Branch }}-{{ epoch }}
          paths:
             - /tmp/docker
 
@@ -172,9 +172,9 @@ jobs:
           at: /tmp
       - restore_cache:
           keys:
-            - build-v0-{{ .Branch }}-{{ epoch }}
-            - build-v0-{{ .Branch }}-
-            - build-v0-
+            - build-v1-{{ .Branch }}-{{ epoch }}
+            - build-v1-{{ .Branch }}-
+            - build-v1-
           paths:
             - /tmp/docker
       - restore_cache:
@@ -251,9 +251,9 @@ jobs:
           at: /tmp
       - restore_cache:
           keys:
-            - build-v0-{{ .Branch }}-{{ epoch }}
-            - build-v0-{{ .Branch }}-
-            - build-v0-
+            - build-v1-{{ .Branch }}-{{ epoch }}
+            - build-v1-{{ .Branch }}-
+            - build-v1-
           paths:
             - /tmp/docker
       - restore_cache:
@@ -327,9 +327,9 @@ jobs:
           at: /tmp
       - restore_cache:
           keys:
-            - build-v0-{{ .Branch }}-{{ epoch }}
-            - build-v0-{{ .Branch }}-
-            - build-v0-
+            - build-v1-{{ .Branch }}-{{ epoch }}
+            - build-v1-{{ .Branch }}-
+            - build-v1-
           paths:
             - /tmp/docker
       - restore_cache:
@@ -445,9 +445,9 @@ jobs:
             fi
       - restore_cache:
           keys:
-            - build-v0-{{ .Branch }}-{{ epoch }}
-            - build-v0-{{ .Branch }}-
-            - build-v0-
+            - build-v1-{{ .Branch }}-{{ epoch }}
+            - build-v1-{{ .Branch }}-
+            - build-v1-
           paths:
             - /tmp/docker
       - run:
@@ -487,9 +487,9 @@ jobs:
             fi
       - restore_cache:
           keys:
-            - build-v0-{{ .Branch }}-{{ epoch }}
-            - build-v0-{{ .Branch }}-
-            - build-v0-
+            - build-v1-{{ .Branch }}-{{ epoch }}
+            - build-v1-{{ .Branch }}-
+            - build-v1-
           paths:
             - /tmp/docker
       - run:
