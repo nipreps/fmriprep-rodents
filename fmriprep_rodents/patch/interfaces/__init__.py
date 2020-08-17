@@ -43,7 +43,7 @@ class BIDSDataGrabber(_BIDSDataGrabber):
 
 class _TemplateFlowSelectOutputSpec(TFSelectOutputSpec):
     brain_mask = File(desc="Template's brain mask")
-    t2star_file = File(desc='T2* template')
+    t2w_file = File(desc="Template's T2w image")
 
 
 class TemplateFlowSelect(_TFSelect):
@@ -69,8 +69,8 @@ class TemplateFlowSelect(_TFSelect):
         self._results['brain_mask'] = tf.get(
             name[0], desc='brain', suffix='mask', **specs
         )
-        self._results['t2star_file'] = tf.get(
-            name[0], suffix='T2star', **specs
+        self._results['t2w_file'] = tf.get(
+            name[0], suffix='T2w', **specs
         )
         return runtime
 

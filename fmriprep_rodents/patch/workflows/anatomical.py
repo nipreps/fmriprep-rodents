@@ -57,7 +57,7 @@ def init_anat_preproc_wf(
                 output_dir='.',
                 skull_strip_mode='force',
                 skull_strip_template=Reference('OASIS30ANTs'),
-                spaces=SpatialReferences(spaces=['WHS']),
+                spaces=SpatialReferences(spaces=['Fischer344']),
             )
     Parameters
     ----------
@@ -404,7 +404,7 @@ def init_anat_norm_wf(
             wf = init_anat_norm_wf(
                 debug=False,
                 omp_nthreads=1,
-                templates=['WHS'],
+                templates=['Fischer344'],
             )
 
     .. important::
@@ -573,10 +573,10 @@ The following template{tpls} selected for spatial normalization:
                                  ('spec', 'template_spec')]),
         (split_desc, registration, [('name', 'template'),
                                     (('spec', _no_atlas), 'template_spec')]),
-        (tf_select, tpl_moving, [('t2star_file', 'reference_image')]),
-        (tf_select, std_mask, [('t2star_file', 'reference_image')]),
-        (tf_select, std_dseg, [('t2star_file', 'reference_image')]),
-        (tf_select, std_tpms, [('t2star_file', 'reference_image')]),
+        (tf_select, tpl_moving, [('t2w_file', 'reference_image')]),
+        (tf_select, std_mask, [('t2w_file', 'reference_image')]),
+        (tf_select, std_dseg, [('t2w_file', 'reference_image')]),
+        (tf_select, std_tpms, [('t2w_file', 'reference_image')]),
         (trunc_mov, registration, [
             ('output_image', 'moving_image')]),
         (registration, tpl_moving, [('composite_transform', 'transforms')]),
@@ -702,7 +702,7 @@ def init_anat_reports_wf(*, freesurfer, output_dir,
         (inputnode, norm_rpt, [('template', 'before_label')]),
         (inputnode, norm_msk, [('std_t1w', 'after'),
                                ('std_mask', 'after_mask')]),
-        (tf_select, norm_msk, [('t2star_file', 'before'),
+        (tf_select, norm_msk, [('t2w_file', 'before'),
                                ('brain_mask', 'mask_file')]),
         (norm_msk, norm_rpt, [('before', 'before'),
                               ('after', 'after')]),

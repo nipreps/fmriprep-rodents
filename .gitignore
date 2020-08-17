@@ -79,3 +79,5 @@ secrets.py
 local_settings.py
 
 *.swp
+.vscode/
+local-debug/

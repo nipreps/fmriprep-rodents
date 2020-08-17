@@ -475,7 +475,7 @@ class workflow(_Config):
     """Run FreeSurfer's surface reconstruction."""
     skull_strip_fixed_seed = False
     """Fix a seed for skull-stripping."""
-    skull_strip_template = "WHS"
+    skull_strip_template = "Fischer344"
     """Change default brain extraction template."""
     skull_strip_t1w = "force"
     """Skip brain extraction of the T1w image (default is ``force``, meaning that
@@ -628,9 +628,9 @@ def init_spaces(checkpoint=True):
         spaces.checkpoint()
 
     # Add the default standard space if not already present (required by several sub-workflows)
-    if "WHS" not in spaces.get_spaces(nonstandard=False, dim=(3,)):
+    if "Fischer344" not in spaces.get_spaces(nonstandard=False, dim=(3,)):
         spaces.add(
-            Reference("WHS", {})
+            Reference("Fischer344", {})
         )
 
     # Make the SpatialReferences object available
