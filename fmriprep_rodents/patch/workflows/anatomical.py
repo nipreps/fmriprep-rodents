@@ -473,7 +473,7 @@ def init_anat_norm_wf(
 
     """
     from collections import defaultdict
-    from niworkflows.interfaces.ants import ImageMath
+    from nipype.interfaces.ants import ImageMath
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from smriprep.interfaces.templateflow import TemplateDesc
     from ..interfaces import RobustMNINormalization
