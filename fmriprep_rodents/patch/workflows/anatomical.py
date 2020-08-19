@@ -341,6 +341,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
         freesurfer=freesurfer,
         num_t1w=num_t2w,
         output_dir=output_dir,
+        spaces=spaces,
     )
 
     workflow.connect([
@@ -348,20 +349,16 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
         (anat_template_wf, anat_derivatives_wf, [
             ('outputnode.t1w_valid_list', 'inputnode.source_files')]),
         (anat_norm_wf, anat_derivatives_wf, [
-            ('poutputnode.template', 'inputnode.template'),
-            ('poutputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
-            ('poutputnode.std2anat_xfm', 'inputnode.std2anat_xfm')
+            ('outputnode.template', 'inputnode.template'),
+            ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+            ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')
         ]),
         (outputnode, anat_derivatives_wf, [
-            ('std_preproc', 'inputnode.std_t1w'),
             ('t2w_ref_xfms', 'inputnode.t1w_ref_xfms'),
             ('t2w_preproc', 'inputnode.t1w_preproc'),
             ('t2w_mask', 'inputnode.t1w_mask'),
             ('t2w_dseg', 'inputnode.t1w_dseg'),
             ('t2w_tpms', 'inputnode.t1w_tpms'),
-            ('std_mask', 'inputnode.std_mask'),
-            ('std_dseg', 'inputnode.std_dseg'),
-            ('std_tpms', 'inputnode.std_tpms'),
         ]),
     ])
 
