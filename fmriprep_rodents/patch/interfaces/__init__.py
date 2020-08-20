@@ -262,6 +262,11 @@ class RobustMNINormalization(_Norm):
 
             template_spec["suffix"] = self.inputs.reference
             template_spec["desc"] = None
+
+            # HACK: since Fischer has no resolutions
+            if self.inputs.template == 'Fischer344':
+                default_resolution = None
+
             ref_template, template_spec = get_template_specs(
                 self.inputs.template,
                 template_spec=template_spec,
