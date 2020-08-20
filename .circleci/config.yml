@@ -284,7 +284,7 @@ jobs:
             pip install --upgrade pip setuptools
             pip install --upgrade /tmp/src/fmriprep-rodents/wrapper/
       - run:
-          name: Run anatomical workflow on rodents
+          name: Run full BOLD workflow on rodents
           no_output_timeout: 2h
           command: |
             mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/derivatives
