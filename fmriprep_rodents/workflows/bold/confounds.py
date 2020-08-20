@@ -494,7 +494,7 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
     resample_parc = pe.Node(ApplyTransforms(
         dimension=3,
         input_image=str(get_template(
-            'Fischer344', suffix='dseg', extension=['.nii', '.nii.gz'])),
+            'Fischer344', suffix='dseg', atlas=None, extension=['.nii', '.nii.gz'])),
         interpolation='MultiLabel'),
         name='resample_parc')
 
