@@ -77,9 +77,8 @@ class TemplateFlowSelect(_TFSelect):
 
 class _RobustMNINormalizationInputSpec(_NormInputSpec):
     reference = traits.Enum(
-        "T2star",
-        "T1w",
         "T2w",
+        "T1w",
         "boldref",
         "PDw",
         mandatory=True,
