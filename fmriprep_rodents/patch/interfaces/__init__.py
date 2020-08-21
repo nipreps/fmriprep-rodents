@@ -274,6 +274,7 @@ class RobustMNINormalization(_Norm):
             )
 
             template_spec['atlas'] = None
+            template_spec['hemi'] = None
 
             # Set reference image
             self._reference_image = ref_template
