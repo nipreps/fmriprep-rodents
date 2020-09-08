@@ -238,10 +238,10 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file', 'subjects_dir', 'subject_id',
-                't1w_preproc', 't1w_mask', 't1w_dseg', 't1w_tpms',
-                't1w_aseg', 't1w_aparc',
+                'anat_preproc', 'anat_mask', 'anat_dseg', 'anat_tpms',
+                'anat_aseg', 'anat_aparc',
                 'anat2std_xfm', 'std2anat_xfm', 'template',
-                't1w2fsnative_xfm', 'fsnative2t1w_xfm']),
+                'anat2fsnative_xfm', 'fsnative2anat_xfm']),
         name='inputnode')
     inputnode.inputs.bold_file = bold_file
 
@@ -421,8 +421,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (inputnode, t1w_brain, [('t1w_preproc', 'in_file'),
-                                ('t1w_mask', 'in_mask')]),
+        (inputnode, t1w_brain, [('anat_preproc', 'in_file'),
+                                ('anat_mask', 'in_mask')]),
         # BOLD buffer has slice-time corrected if it was run, original otherwise
         (boldbuffer, bold_split, [('bold_file', 'in_file')]),
         # HMC
@@ -433,18 +433,18 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('outputnode.algo_dummy_scans', 'algo_dummy_scans')]),
         # EPI-T1 registration workflow
         (inputnode, bold_reg_wf, [
-            ('t1w_dseg', 'inputnode.t1w_dseg'),
+            ('anat_dseg', 'inputnode.t1w_dseg'),
             # Undefined if --fs-no-reconall, but this is safe
             ('subjects_dir', 'inputnode.subjects_dir'),
             ('subject_id', 'inputnode.subject_id'),
-            ('fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm')]),
+            ('fsnative2anat_xfm', 'inputnode.fsnative2t1w_xfm')]),
         (t1w_brain, bold_reg_wf, [
             ('out_file', 'inputnode.t1w_brain')]),
         (inputnode, bold_t1_trans_wf, [
             ('bold_file', 'inputnode.name_source'),
-            ('t1w_mask', 'inputnode.t1w_mask'),
-            ('t1w_aseg', 'inputnode.t1w_aseg'),
-            ('t1w_aparc', 'inputnode.t1w_aparc')]),
+            ('anat_mask', 'inputnode.t1w_mask'),
+            ('anat_aseg', 'inputnode.t1w_aseg'),
+            ('anat_aparc', 'inputnode.t1w_aparc')]),
         (t1w_brain, bold_t1_trans_wf, [
             ('out_file', 'inputnode.t1w_brain')]),
         # unused if multiecho, but this is safe
@@ -474,8 +474,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('outputnode.epi_brain', 'inputnode.ref_bold_brain')]),
         (bold_sdc_wf, summary, [('outputnode.method', 'distortion_correction')]),
         # Connect bold_confounds_wf
-        (inputnode, bold_confounds_wf, [('t1w_tpms', 'inputnode.t1w_tpms'),
-                                        ('t1w_mask', 'inputnode.t1w_mask')]),
+        (inputnode, bold_confounds_wf, [('anat_tpms', 'inputnode.t1w_tpms'),
+                                        ('anat_mask', 'inputnode.t1w_mask')]),
         (bold_hmc_wf, bold_confounds_wf, [
             ('outputnode.movpar_file', 'inputnode.movpar_file'),
             ('outputnode.rmsd_file', 'inputnode.rmsd_file')]),
@@ -530,7 +530,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         fmap_unwarp_report_wf = init_sdc_unwarp_report_wf()
         workflow.connect([
             (inputnode, fmap_unwarp_report_wf, [
-                ('t1w_dseg', 'inputnode.in_seg')]),
+                ('anat_dseg', 'inputnode.in_seg')]),
             (bold_reference_wf, fmap_unwarp_report_wf, [
                 ('outputnode.ref_image', 'inputnode.in_pre')]),
             (bold_reg_wf, fmap_unwarp_report_wf, [
@@ -567,7 +567,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 name='syn_unwarp_report_wf', forcedsyn=True)
             workflow.connect([
                 (inputnode, syn_unwarp_report_wf, [
-                    ('t1w_dseg', 'inputnode.in_seg')]),
+                    ('anat_dseg', 'inputnode.in_seg')]),
                 (bold_reference_wf, syn_unwarp_report_wf, [
                     ('outputnode.ref_image', 'inputnode.in_pre')]),
                 (bold_reg_wf, syn_unwarp_report_wf, [
@@ -629,8 +629,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('template', 'inputnode.templates'),
                 ('anat2std_xfm', 'inputnode.anat2std_xfm'),
                 ('bold_file', 'inputnode.name_source'),
-                ('t1w_aseg', 'inputnode.bold_aseg'),
-                ('t1w_aparc', 'inputnode.bold_aparc')]),
+                ('anat_aseg', 'inputnode.bold_aseg'),
+                ('anat_aparc', 'inputnode.bold_aparc')]),
             (bold_hmc_wf, bold_std_trans_wf, [
                 ('outputnode.xforms', 'inputnode.hmc_xforms')]),
             (bold_reg_wf, bold_std_trans_wf, [
@@ -750,7 +750,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (inputnode, bold_surf_wf, [
                 ('subjects_dir', 'inputnode.subjects_dir'),
                 ('subject_id', 'inputnode.subject_id'),
-                ('t1w2fsnative_xfm', 'inputnode.t1w2fsnative_xfm')]),
+                ('anat2fsnative_xfm', 'inputnode.t1w2fsnative_xfm')]),
             (bold_t1_trans_wf, bold_surf_wf, [('outputnode.bold_t1', 'inputnode.source_file')]),
             (bold_surf_wf, outputnode, [('outputnode.surfaces', 'surfaces')]),
             (bold_surf_wf, func_derivatives_wf, [

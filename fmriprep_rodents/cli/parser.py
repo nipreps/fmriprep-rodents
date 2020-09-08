@@ -372,7 +372,7 @@ https://fmriprep-rodents.readthedocs.io/en/%s/spaces.html"""
     g_ants = parser.add_argument_group("Specific options for ANTs registrations")
     g_ants.add_argument(
         "--skull-strip-template",
-        default="OASIS30ANTs",
+        default="Fischer344",
         type=Reference.from_string,
         help="select a template for skull-stripping with antsBrainExtraction",
     )
@@ -574,7 +574,7 @@ def parse_args(args=None, namespace=None):
     # Initialize --output-spaces if not defined
     if config.execution.output_spaces is None:
         config.execution.output_spaces = SpatialReferences(
-            [Reference("MNI152NLin2009cAsym", {"res": "native"})]
+            [Reference("Fischer344", {"res": "native"})]
         )
 
     # Retrieve logging level

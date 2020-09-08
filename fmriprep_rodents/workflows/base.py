@@ -288,10 +288,10 @@ tasks and sessions), the following preprocessing was performed.
 
         workflow.connect([
             (anat_preproc_wf, func_preproc_wf,
-             [('outputnode.t2w_preproc', 'inputnode.t1w_preproc'),
-              ('outputnode.t2w_mask', 'inputnode.t1w_mask'),
-              ('outputnode.t2w_dseg', 'inputnode.t1w_dseg'),
-              ('outputnode.t2w_tpms', 'inputnode.t1w_tpms'),
+             [('outputnode.t2w_preproc', 'inputnode.anat_preproc'),
+              ('outputnode.t2w_mask', 'inputnode.anat_mask'),
+              ('outputnode.t2w_dseg', 'inputnode.anat_dseg'),
+              ('outputnode.t2w_tpms', 'inputnode.anat_tpms'),
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
