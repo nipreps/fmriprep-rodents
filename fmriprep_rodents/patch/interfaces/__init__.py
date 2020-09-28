@@ -67,7 +67,7 @@ class TemplateFlowSelect(_TFSelect):
             })
 
         self._results['brain_mask'] = tf.get(
-            name[0], desc='brain', suffix='mask', **specs
+            name[0], desc='brain', hemi=None, suffix='mask', **specs
         )
         self._results['t2w_file'] = tf.get(
             name[0], suffix='T2w', **specs
