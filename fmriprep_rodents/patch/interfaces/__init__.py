@@ -12,7 +12,7 @@ from smriprep.interfaces.templateflow import (
     File,
     isdefined,
 )
-from templateflow import api as tf
+import templateflow as tf
 
 LOGGER = logging.getLogger("nipype.interface")
 
@@ -66,10 +66,13 @@ class TemplateFlowSelect(_TFSelect):
                 if k not in specs
             })
 
-        self._results['brain_mask'] = tf.get(
+        # ensure skeleton is updated
+        tf.conf.update()
+
+        self._results['brain_mask'] = tf.api.get(
             name[0], desc='brain', hemi=None, suffix='mask', **specs
         )
-        self._results['t2w_file'] = tf.get(
+        self._results['t2w_file'] = tf.api.get(
             name[0], suffix='T2w', **specs
         )
         return runtime
