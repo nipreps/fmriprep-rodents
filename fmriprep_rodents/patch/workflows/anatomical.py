@@ -1024,8 +1024,11 @@ def _empty_report(in_file=None):
     return str(out_file)
 
 
-def _fmt_cohort(in_template):
-    return in_template.replace(':', '_')
+def _fmt_cohort(template, cohort=None):
+    from nipype.interfaces.base import isdefined
+    if cohort and isdefined(cohort):
+        return f"{template}:cohort-{cohort}"
+    return template
 
 
 def _rpt_masks(mask_file, before, after, after_mask=None):
