@@ -304,8 +304,8 @@ cannot be found."""
                 )
 
             # Get the template specified by the user.
-            ref_mask = tf.get(
-                self.inputs.template, desc="brain", suffix="mask", **template_spec
+            ref_mask = tf.api.get(
+                self.inputs.template, hemi=None, desc="brain", suffix="mask", **template_spec
             )
 
             # Default is explicit masking disabled
