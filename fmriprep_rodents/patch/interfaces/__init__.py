@@ -7,10 +7,12 @@ from niworkflows.interfaces.mni import (
 )
 from smriprep.interfaces.templateflow import (
     TemplateFlowSelect as _TFSelect,
+    _TemplateFlowSelectInputSpec as TFSelectInputSpec,
     _TemplateFlowSelectOutputSpec as TFSelectOutputSpec,
     traits,
     File,
     isdefined,
+    InputMultiObject,
 )
 import templateflow as tf
 
@@ -41,12 +43,20 @@ class BIDSDataGrabber(_BIDSDataGrabber):
         return runtime
 
 
+class _TemplateFlowSelectInputSpec(TFSelectInputSpec):
+    resolution = InputMultiObject(
+        traits.Either(None, traits.Int),
+        desc='Specify a template resolution index'
+    )
+
+
 class _TemplateFlowSelectOutputSpec(TFSelectOutputSpec):
     brain_mask = File(desc="Template's brain mask")
     t2w_file = File(desc="Template's T2w image")
 
 
 class TemplateFlowSelect(_TFSelect):
+    input_spec = _TemplateFlowSelectInputSpec
     output_spec = _TemplateFlowSelectOutputSpec
 
     def _run_interface(self, runtime):
@@ -66,14 +76,19 @@ class TemplateFlowSelect(_TFSelect):
                 if k not in specs
             })
 
-        # ensure skeleton is updated
-        tf.conf.update()
-
         self._results['brain_mask'] = tf.api.get(
-            name[0], desc='brain', hemi=None, suffix='mask', **specs
+            name[0],
+            raise_empty=True,
+            desc='brain',
+            hemi=None,
+            suffix='mask',
+            **specs
         )
         self._results['t2w_file'] = tf.api.get(
-            name[0], suffix='T2w', **specs
+            name[0],
+            raise_empty=True,
+            suffix='T2w',
+            **specs,
         )
         return runtime
 
@@ -243,7 +258,7 @@ class RobustMNINormalization(_Norm):
 
         # If no reference image is provided, fall back to the default template.
         else:
-            from niworkflows.utils.misc import get_template_specs
+            from ..utils import get_template_specs
 
             # Raise an error if the user specifies an unsupported image orientation.
             if self.inputs.orientation == "LAS":
@@ -259,16 +274,15 @@ class RobustMNINormalization(_Norm):
                 self.inputs.flavor
             ]
 
+            # HACK: since Fischer has no resolutions
+            if self.inputs.template == 'Fischer344':
+                default_resolution = None
             # Set the template resolution.
-            if isdefined(self.inputs.template_resolution):
+            elif isdefined(self.inputs.template_resolution):
                 template_spec["res"] = self.inputs.template_resolution
 
             template_spec["suffix"] = self.inputs.reference
             template_spec["desc"] = None
-
-            # HACK: since Fischer has no resolutions
-            if self.inputs.template == 'Fischer344':
-                default_resolution = None
 
             ref_template, template_spec = get_template_specs(
                 self.inputs.template,

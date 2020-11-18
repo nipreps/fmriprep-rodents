@@ -724,7 +724,7 @@ def _split_spec(in_target):
 
 
 def _select_template(template):
-    from niworkflows.utils.misc import get_template_specs
+    from ...patch.utils import get_template_specs
     template, specs = template
     template = template.split(':')[0]  # Drop any cohort modifier if present
     specs = specs.copy()
@@ -737,12 +737,12 @@ def _select_template(template):
         return get_template_specs(template, template_spec=specs)[0]
 
     # Map nonstandard resolutions to existing resolutions
-    specs['resolution'] = 2
-    try:
-        out = get_template_specs(template, template_spec=specs)
-    except RuntimeError:
-        specs['resolution'] = 1
-        out = get_template_specs(template, template_spec=specs)
+    if template == 'Fischer344':
+        default_res = None
+    else:
+        default_res = 2
+
+    out = get_template_specs(template, template_spec=specs, default_resolution=default_res)
 
     return out[0]
 

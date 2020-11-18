@@ -800,7 +800,7 @@ def init_anat_derivatives_wf(
     from niworkflows.interfaces.utility import KeySelect
     from smriprep.interfaces import DerivativesDataSink
     from smriprep.workflows.outputs import (
-        _bids_relative, _combine_cohort, _no_native, _is_native, _drop_path
+        _bids_relative, _combine_cohort, _is_native, _drop_path
     )
 
     workflow = Workflow(name=name)
@@ -1050,3 +1050,10 @@ def _rpt_masks(mask_file, before, after, after_mask=None):
 def _no_atlas(spec):
     spec['atlas'] = None
     return spec
+
+
+def _no_native(value):
+    try:
+        return int(value)
+    except Exception:
+        return None
