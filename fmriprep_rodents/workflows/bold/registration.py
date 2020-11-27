@@ -259,8 +259,8 @@ def init_bold_t1_trans_wf(freesurfer, mem_gb, omp_nthreads, multiecho=False, use
       * :py:func:`~fmriprep_rodents.workflows.bold.registration.init_fsl_bbr_wf`
 
     """
+    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
@@ -377,7 +377,8 @@ def init_bbreg_wf(use_bbr, bold2t1w_dof, bold2t1w_init, omp_nthreads, name='bbre
     This workflow uses FreeSurfer's ``bbregister`` to register a BOLD image to
     a T1-weighted structural image.
 
-    It is a counterpart to :py:func:`~fmriprep_rodents.workflows.bold.registration.init_fsl_bbr_wf`,
+    It is a counterpart to
+    :py:func:`~fmriprep_rodents.workflows.bold.registration.init_fsl_bbr_wf`,
     which performs the same task using FSL's FLIRT with a BBR cost function.
     The ``use_bbr`` option permits a high degree of control over registration.
     If ``False``, standard, affine coregistration will be performed using
@@ -717,7 +718,8 @@ for distortions remaining in the BOLD reference.
     else:
         # Should mostly be hit while building docs
         LOGGER.warning("FSLDIR unset - using packaged BBR schedule")
-        flt_bbr.inputs.schedule = pkgr.resource_filename('fmriprep_rodents', 'data/flirtsch/bbr.sch')
+        flt_bbr.inputs.schedule = pkgr.resource_filename(
+            'fmriprep_rodents', 'data/flirtsch/bbr.sch')
 
     workflow.connect([
         (inputnode, wm_mask, [('t1w_dseg', 'in_seg')]),

@@ -265,8 +265,8 @@ def init_bold_std_trans_wf(
         described outputs.
 
     """
+    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.utility import KeySelect
@@ -492,8 +492,8 @@ def init_bold_preproc_trans_wf(mem_gb, omp_nthreads,
         Same as ``bold_ref``, but once the brain mask has been applied
 
     """
+    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
 
