@@ -26,6 +26,7 @@ from ...interfaces import DerivativesDataSink
 from ...interfaces.reports import FunctionalSummary
 
 # BOLD workflows
+from ...patch.workflows.func import init_bold_reference_wf
 from .confounds import init_bold_confs_wf, init_carpetplot_wf
 from .hmc import init_bold_hmc_wf
 from .stc import init_bold_stc_wf

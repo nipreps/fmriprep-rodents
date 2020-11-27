@@ -4,8 +4,6 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
-from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
-
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.images import ValidateImage
 from niworkflows.interfaces.masks import SimpleShowMaskRPT
@@ -13,6 +11,7 @@ from niworkflows.interfaces.registration import EstimateReferenceImage
 from niworkflows.utils.connections import listify
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 
+from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
