@@ -26,6 +26,7 @@ from ...interfaces import DerivativesDataSink
 from ...interfaces.reports import FunctionalSummary
 
 # BOLD workflows
+from ...patch.workflows.func import init_bold_reference_wf
 from .confounds import init_bold_confs_wf, init_carpetplot_wf
 from .hmc import init_bold_hmc_wf
 from .stc import init_bold_stc_wf
@@ -138,7 +139,6 @@ def init_func_preproc_wf(bold_file):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.nibabel import ApplyMask
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.interfaces.utils import DictMerge
@@ -933,6 +933,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             )
             # fmt:on
         else:
+            # Need to work out how to change this for rodents
             # Xform to 'MNI152NLin2009cAsym' is always computed.
             carpetplot_select_std = pe.Node(
                 KeySelect(fields=["std2anat_xfm"], key="MNI152NLin2009cAsym"),

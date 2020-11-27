@@ -286,8 +286,8 @@ def init_bold_t1_trans_wf(
       * :py:func:`~fmriprep_rodents.workflows.bold.registration.init_fsl_bbr_wf`
 
     """
+    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
@@ -872,13 +872,13 @@ for distortions remaining in the BOLD reference.
             "fmriprep_rodents", "data/flirtsch/bbr.sch"
         )
 
-    workflow.connect(
-        [
-            (inputnode, wm_mask, [("t1w_dseg", "in_seg")]),
-            (inputnode, flt_bbr, [("in_file", "in_file")]),
-            (flt_bbr_init, flt_bbr, [("out_matrix_file", "in_matrix_file")]),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        (inputnode, wm_mask, [('t1w_dseg', 'in_seg')]),
+        (inputnode, flt_bbr, [('in_file', 'in_file')]),
+        (flt_bbr_init, flt_bbr, [('out_matrix_file', 'in_matrix_file')]),
+    ])
+    # fmt:on
 
     if sloppy is True:
         downsample = pe.Node(
