@@ -167,9 +167,6 @@ methodology of *fMRIPrep*.
         (inputnode, val_bold, [(("bold_file", listify), "in_file")]),
         (inputnode, calc_dummy_scans, [("dummy_scans", "dummy_scans")]),
         (val_bold, gen_ref, [("out_file", "in_file")]),
-        (gen_ref, brain_extraction_wf, [
-            ("ref_image", "inputnode.in_files"),
-        ]),
         (val_bold, bold_1st, [(("out_file", listify), "inlist")]),
         (gen_ref, calc_dummy_scans, [("n_volumes_to_discard", "algo_dummy_scans")]),
         (calc_dummy_scans, outputnode, [("skip_vols_num", "skip_vols")]),
@@ -177,16 +174,25 @@ methodology of *fMRIPrep*.
             ("ref_image", "raw_ref_image"),
             ("n_volumes_to_discard", "algo_dummy_scans"),
         ]),
-        (brain_extraction_wf, outputnode, [
-            ("outputnode.out_corrected", "ref_image"),
-            ("outputnode.out_mask", "bold_mask"),
-            ("outputnode.out_brain", "ref_image_brain"),
-        ]),
         (val_bold, validate_1st, [(("out_report", listify), "inlist")]),
         (bold_1st, outputnode, [("out", "bold_file")]),
         (validate_1st, outputnode, [("out", "validation_report")]),
     ])
     # fmt: on
+
+    if not pre_mask:
+        # fmt: off
+        workflow.connect([
+            (gen_ref, brain_extraction_wf, [
+                ("ref_image", "inputnode.in_files"),
+            ]),
+            (brain_extraction_wf, outputnode, [
+                ("outputnode.out_corrected", "ref_image"),
+                ("outputnode.out_mask", "bold_mask"),
+                ("outputnode.out_brain", "ref_image_brain"),
+            ]),
+        ])
+        # fmt: on
 
     if sbref_files:
         nsbrefs = 0
