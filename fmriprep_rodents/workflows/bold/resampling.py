@@ -292,7 +292,6 @@ def init_bold_std_trans_wf(
         described outputs.
 
     """
-    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
@@ -300,6 +299,7 @@ def init_bold_std_trans_wf(
     from niworkflows.interfaces.utils import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     output_references = spaces.cached.get_spaces(nonstandard=False, dim=(3,))
