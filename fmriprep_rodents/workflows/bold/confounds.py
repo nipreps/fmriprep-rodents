@@ -193,7 +193,7 @@ were annotated as motion outliers.
                 "bold",
                 "bold_mask",
                 "movpar_file",
-                "rmsd_file",
+                # "rmsd_file",
                 "skip_vols",
                 "t1w_mask",
                 "t1w_tpms",
@@ -342,12 +342,12 @@ were annotated as motion outliers.
         mem_gb=0.01,
         run_without_submitting=True,
     )
-    add_rmsd_header = pe.Node(
-        AddTSVHeader(columns=["rmsd"]),
-        name="add_rmsd_header",
-        mem_gb=0.01,
-        run_without_submitting=True,
-    )
+    # add_rmsd_header = pe.Node(
+    #     AddTSVHeader(columns=["rmsd"]),
+    #     name="add_rmsd_header",
+    #     mem_gb=0.01,
+    #     run_without_submitting=True,
+    # )
     concat = pe.Node(
         GatherConfounds(), name="concat", mem_gb=0.01, run_without_submitting=True
     )
@@ -512,7 +512,7 @@ were annotated as motion outliers.
 
         # Collate computed confounds together
         (inputnode, add_motion_headers, [('movpar_file', 'in_file')]),
-        (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
+        # (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
         (dvars, add_dvars_header, [('out_nstd', 'in_file')]),
         (dvars, add_std_dvars_header, [('out_std', 'in_file')]),
         (signals, concat, [('out_file', 'signals')]),
@@ -521,7 +521,7 @@ were annotated as motion outliers.
                             ('pre_filter_file', 'cos_basis')]),
         (acompcor, concat, [('components_file', 'acompcor')]),
         (add_motion_headers, concat, [('out_file', 'motion')]),
-        (add_rmsd_header, concat, [('out_file', 'rmsd')]),
+        # (add_rmsd_header, concat, [('out_file', 'rmsd')]),
         (add_dvars_header, concat, [('out_file', 'dvars')]),
         (add_std_dvars_header, concat, [('out_file', 'std_dvars')]),
 
