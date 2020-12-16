@@ -554,14 +554,13 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                                         ('anat_mask', 'inputnode.t1w_mask')]),
         (bold_hmc_wf, bold_confounds_wf, [
             ('outputnode.movpar_file', 'inputnode.movpar_file'),
-            ('outputnode.rmsd_file', 'inputnode.rmsd_file')]),
+            #  ('outputnode.rmsd_file', 'inputnode.rmsd_file'),
+        ]),
         (bold_reg_wf, bold_confounds_wf, [
             ('outputnode.itk_t1_to_bold', 'inputnode.t1_bold_xform')]),
         (bold_reference_wf, bold_confounds_wf, [
-            ('outputnode.skip_vols', 'inputnode.skip_vols')]),
-        (bold_bold_trans_wf, bold_confounds_wf, [
-            ('outputnode.bold_mask', 'inputnode.bold_mask'),
-        ]),
+            ('outputnode.skip_vols', 'inputnode.skip_vols'),
+            ('outputnode.bold_mask', 'inputnode.bold_mask')]),
         (bold_confounds_wf, outputnode, [
             ('outputnode.confounds_file', 'confounds'),
         ]),
@@ -933,13 +932,10 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             )
             # fmt:on
         else:
-            # Need to work out how to change this for rodents
-            # Xform to 'MNI152NLin2009cAsym' is always computed.
+            # Xform to 'Fischer344' is always computed.
             carpetplot_select_std = pe.Node(
-                KeySelect(fields=["std2anat_xfm"], key="MNI152NLin2009cAsym"),
-                name="carpetplot_select_std",
-                run_without_submitting=True,
-            )
+                KeySelect(fields=["std2anat_xfm"], key="Fischer344"),
+                name="carpetplot_select_std", run_without_submitting=True)
 
             # fmt:off
             workflow.connect([
@@ -950,7 +946,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                     ('std2anat_xfm', 'inputnode.std2anat_xfm')]),
                 (bold_bold_trans_wf if not multiecho else bold_t2s_wf, carpetplot_wf, [
                     ('outputnode.bold', 'inputnode.bold')]),
-                (bold_bold_trans_wf, carpetplot_wf, [
+                (bold_reference_wf, carpetplot_wf, [
                     ('outputnode.bold_mask', 'inputnode.bold_mask')]),
                 (bold_reg_wf, carpetplot_wf, [
                     ('outputnode.itk_t1_to_bold', 'inputnode.t1_bold_xform')]),
