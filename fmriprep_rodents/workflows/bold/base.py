@@ -26,7 +26,6 @@ from ...interfaces import DerivativesDataSink
 from ...interfaces.reports import FunctionalSummary
 
 # BOLD workflows
-from ...patch.workflows.func import init_bold_reference_wf
 from .confounds import init_bold_confs_wf, init_carpetplot_wf
 from .hmc import init_bold_hmc_wf
 from .stc import init_bold_stc_wf
@@ -143,6 +142,7 @@ def init_func_preproc_wf(bold_file):
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.interfaces.utils import DictMerge
     from sdcflows.workflows.base import init_sdc_estimate_wf, fieldmap_wrangler
+    from ...patch.workflows.func import init_bold_reference_wf
 
     mem_gb = {"filesize": 1, "resampled": 1, "largemem": 1}
     bold_tlen = 10

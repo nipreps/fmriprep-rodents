@@ -286,12 +286,12 @@ def init_bold_t1_trans_wf(
       * :py:func:`~fmriprep_rodents.workflows.bold.registration.init_fsl_bbr_wf`
 
     """
-    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.interfaces.utils import GenerateSamplingReference
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     inputnode = pe.Node(
