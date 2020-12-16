@@ -178,7 +178,7 @@ Frames that exceeded a threshold of {fd} mm FD or {dv} standardised DVARS
 were annotated as motion outliers.
 """.format(fd=regressors_fd_th, dv=regressors_dvars_th)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'bold_mask', 'movpar_file', 'rmsd_file',
+        fields=['bold', 'bold_mask', 'movpar_file', # 'rmsd_file',
                 'skip_vols', 't1w_mask', 't1w_tpms', 't1_bold_xform']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
@@ -188,7 +188,7 @@ were annotated as motion outliers.
     # Get masks ready in T1w space
     acc_tpm = pe.Node(AddTPMs(indices=[1, 2]),  # BIDS convention (WM=1, CSF=2)
                       name='acc_tpm')  # acc stands for aCompCor
-    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=30), name='csf_roi')
+    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=3), name='csf_roi')
     wm_roi = pe.Node(TPM2ROI(
         erode_prop=0.6, mask_erode_prop=0.6**3),  # 0.6 = radius; 0.6^3 = volume
         name='wm_roi')
@@ -264,9 +264,9 @@ were annotated as motion outliers.
     add_motion_headers = pe.Node(
         AddTSVHeader(columns=["trans_x", "trans_y", "trans_z", "rot_x", "rot_y", "rot_z"]),
         name="add_motion_headers", mem_gb=0.01, run_without_submitting=True)
-    add_rmsd_header = pe.Node(
-        AddTSVHeader(columns=["rmsd"]),
-        name="add_rmsd_header", mem_gb=0.01, run_without_submitting=True)
+    # add_rmsd_header = pe.Node(
+    #     AddTSVHeader(columns=["rmsd"]),
+    #     name="add_rmsd_header", mem_gb=0.01, run_without_submitting=True)
     concat = pe.Node(GatherConfounds(), name="concat", mem_gb=0.01, run_without_submitting=True)
 
     # CompCor metadata
@@ -391,7 +391,7 @@ were annotated as motion outliers.
 
         # Collate computed confounds together
         (inputnode, add_motion_headers, [('movpar_file', 'in_file')]),
-        (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
+        # (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
         (dvars, add_dvars_header, [('out_nstd', 'in_file')]),
         (dvars, add_std_dvars_header, [('out_std', 'in_file')]),
         (signals, concat, [('out_file', 'signals')]),
@@ -400,7 +400,7 @@ were annotated as motion outliers.
                             ('pre_filter_file', 'cos_basis')]),
         (acompcor, concat, [('components_file', 'acompcor')]),
         (add_motion_headers, concat, [('out_file', 'motion')]),
-        (add_rmsd_header, concat, [('out_file', 'rmsd')]),
+        # (add_rmsd_header, concat, [('out_file', 'rmsd')]),
         (add_dvars_header, concat, [('out_file', 'dvars')]),
         (add_std_dvars_header, concat, [('out_file', 'std_dvars')]),
 

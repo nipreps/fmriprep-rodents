@@ -29,7 +29,7 @@ class GatherConfoundsInputSpec(BaseInterfaceInputSpec):
     dvars = File(exists=True, desc='file containing DVARS')
     std_dvars = File(exists=True, desc='file containing standardized DVARS')
     fd = File(exists=True, desc='input framewise displacement')
-    rmsd = File(exists=True, desc='input RMS framewise displacement')
+    # rmsd = File(exists=True, desc='input RMS framewise displacement')
     tcompcor = File(exists=True, desc='input tCompCorr')
     acompcor = File(exists=True, desc='input aCompCorr')
     cos_basis = File(exists=True, desc='input cosine basis')
@@ -83,7 +83,7 @@ class GatherConfounds(SimpleInterface):
             dvars=self.inputs.dvars,
             std_dvars=self.inputs.std_dvars,
             fdisp=self.inputs.fd,
-            rmsd=self.inputs.rmsd,
+            # rmsd=self.inputs.rmsd,
             tcompcor=self.inputs.tcompcor,
             acompcor=self.inputs.acompcor,
             cos_basis=self.inputs.cos_basis,
@@ -136,8 +136,8 @@ class ICAConfounds(SimpleInterface):
         return runtime
 
 
-def _gather_confounds(signals=None, dvars=None, std_dvars=None, fdisp=None,
-                      rmsd=None, tcompcor=None, acompcor=None, cos_basis=None,
+def _gather_confounds(signals=None, dvars=None, std_dvars=None, fdisp=None,  # rmsd=None,
+                      tcompcor=None, acompcor=None, cos_basis=None,
                       motion=None, aroma=None, newpath=None):
     r"""
     Load confounds from the filenames, concatenate together horizontally
@@ -188,7 +188,7 @@ def _gather_confounds(signals=None, dvars=None, std_dvars=None, fdisp=None,
                            (std_dvars, 'Standardized DVARS'),
                            (dvars, 'DVARS'),
                            (fdisp, 'Framewise displacement'),
-                           (rmsd, 'Framewise displacement (RMS)'),
+                        #    (rmsd, 'Framewise displacement (RMS)'),
                            (tcompcor, 'tCompCor'),
                            (acompcor, 'aCompCor'),
                            (cos_basis, 'Cosine basis'),
