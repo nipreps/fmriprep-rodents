@@ -611,7 +611,7 @@ the transforms to correct for head-motion"""
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
 
     # Generate a new BOLD reference
-    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads)
+    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
     bold_reference_wf.__desc__ = None  # Unset description to avoid second appearance
 
     # fmt:off
@@ -619,6 +619,7 @@ the transforms to correct for head-motion"""
         (inputnode, merge, [('name_source', 'header_source')]),
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+        (inputnode, bold_reference_wf, [('bold_mask', 'inputnode.bold_mask')]),
         (merge, outputnode, [('out_file', 'bold')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref'),
