@@ -148,6 +148,7 @@ class ICAConfounds(SimpleInterface):
         return runtime
 
 
+<<<<<<< HEAD
 def _gather_confounds(
     signals=None,
     dvars=None,
@@ -160,6 +161,11 @@ def _gather_confounds(
     aroma=None,
     newpath=None,
 ):
+=======
+def _gather_confounds(signals=None, dvars=None, std_dvars=None, fdisp=None,  # rmsd=None,
+                      tcompcor=None, acompcor=None, cos_basis=None,
+                      motion=None, aroma=None, newpath=None):
+>>>>>>> FIX: update confounds workflow
     r"""
     Load confounds from the filenames, concatenate together horizontally
     and save new file.
