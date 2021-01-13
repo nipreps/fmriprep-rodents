@@ -1,4 +1,4 @@
-def fix_multi_source_name(in_files, modality='T2w'):
+def fix_multi_source_name(in_files, modality="T2w"):
     """
     Make up a generic source name when there are multiple
     >>> fix_multi_source_name([

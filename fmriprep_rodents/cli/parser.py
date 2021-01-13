@@ -27,7 +27,9 @@ def _build_parser():
         """Ensure a given path exists and it is a file."""
         path = _path_exists(path, parser)
         if not path.is_file():
-            raise parser.error(f"Path should point to a file (or symlink of file): <{path}>.")
+            raise parser.error(
+                f"Path should point to a file (or symlink of file): <{path}>."
+            )
         return path
 
     def _min_one(value, parser):
@@ -40,7 +42,7 @@ def _build_parser():
     def _to_gb(value):
         scale = {"G": 1, "T": 10 ** 3, "M": 1e-3, "K": 1e-6, "B": 1e-9}
         digits = "".join([c for c in value if c.isdigit()])
-        units = value[len(digits):] or "M"
+        units = value[len(digits) :] or "M"
         return int(digits) * scale[units[0]]
 
     def _drop_sub(value):
@@ -48,6 +50,7 @@ def _build_parser():
 
     def _filter_pybids_none_any(dct):
         import bids
+
         return {
             k: bids.layout.Query.NONE
             if v is None
@@ -162,7 +165,7 @@ def _build_parser():
         "--nthreads",
         "--n_cpus",
         "--n-cpus",
-        dest='nprocs',
+        dest="nprocs",
         action="store",
         type=PositiveInt,
         help="maximum number of threads across all processes",

@@ -118,7 +118,9 @@ def main():
             sentry_sdk.capture_message(success_message, level="info")
 
         # Bother users with the boilerplate only iff the workflow went okay.
-        boiler_file = config.execution.output_dir / "fmriprep-rodents" / "logs" / "CITATION.md"
+        boiler_file = (
+            config.execution.output_dir / "fmriprep-rodents" / "logs" / "CITATION.md"
+        )
         if boiler_file.exists():
             if config.environment.exec_env in (
                 "singularity",
@@ -141,12 +143,18 @@ def main():
             dseg_tsv = str(api.get("fsaverage", suffix="dseg", extension=[".tsv"]))
             _copy_any(
                 dseg_tsv,
-                str(config.execution.output_dir / "fmriprep-rodents" / "desc-aseg_dseg.tsv"),
+                str(
+                    config.execution.output_dir
+                    / "fmriprep-rodents"
+                    / "desc-aseg_dseg.tsv"
+                ),
             )
             _copy_any(
                 dseg_tsv,
                 str(
-                    config.execution.output_dir / "fmriprep-rodents" / "desc-aparcaseg_dseg.tsv"
+                    config.execution.output_dir
+                    / "fmriprep-rodents"
+                    / "desc-aparcaseg_dseg.tsv"
                 ),
             )
         errno = 0

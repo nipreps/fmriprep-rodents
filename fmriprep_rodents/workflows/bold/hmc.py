@@ -15,7 +15,7 @@ from ...interfaces.mc import Volreg2ITK
 from ...config import DEFAULT_MEMORY_MIN_GB
 
 
-def init_bold_hmc_wf(mem_gb, omp_nthreads, name='bold_hmc_wf'):
+def init_bold_hmc_wf(mem_gb, omp_nthreads, name="bold_hmc_wf"):
     """
     Build a workflow to estimate head-motion parameters.
 
@@ -61,7 +61,6 @@ def init_bold_hmc_wf(mem_gb, omp_nthreads, name='bold_hmc_wf'):
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces import NormalizeMotionParams
-    from niworkflows.interfaces.itk import MCFLIRT2ITK
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
@@ -69,15 +68,17 @@ Head-motion parameters with respect to the BOLD reference
 (transformation matrices, and six corresponding rotation and translation
 parameters) are estimated before any spatiotemporal filtering using
 `3dVolReg` [AFNI {afni_ver}, @afni, RRID:SCR_005927].
-""".format(afni_ver=afni.Info().version() or '<ver>')
+""".format(
+        afni_ver=afni.Info().version() or "<ver>"
+    )
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['bold_file', 'raw_ref_image']),
-        name='inputnode')
+        niu.IdentityInterface(fields=["bold_file", "raw_ref_image"]), name="inputnode"
+    )
     outputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=['xforms', 'movpar_file', 'rmsd_file']),
-        name='outputnode')
+        niu.IdentityInterface(fields=["xforms", "movpar_file", "rmsd_file"]),
+        name="outputnode",
+    )
 
     # Head motion correction (hmc)
     # mcflirt = pe.Node(
@@ -88,20 +89,18 @@ parameters) are estimated before any spatiotemporal filtering using
     #                 mem_gb=0.05, n_procs=omp_nthreads)
 
     mc = pe.Node(
-        afni.Volreg(
-            zpad=4,
-            outputtype='NIFTI_GZ',
-            args='-prefix NULL -twopass'
-        ),
-        name='mc',
+        afni.Volreg(zpad=4, outputtype="NIFTI_GZ", args="-prefix NULL -twopass"),
+        name="mc",
         mem_gb=mem_gb * 3,
     )
 
-    mc2itk = pe.Node(Volreg2ITK(), name='mcitk', mem_gb=0.05)
+    mc2itk = pe.Node(Volreg2ITK(), name="mcitk", mem_gb=0.05)
 
-    normalize_motion = pe.Node(NormalizeMotionParams(format='AFNI'),
-                               name="normalize_motion",
-                               mem_gb=DEFAULT_MEMORY_MIN_GB)
+    normalize_motion = pe.Node(
+        NormalizeMotionParams(format="AFNI"),
+        name="normalize_motion",
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
 
     # def _pick_rel(rms_files):
     #     return rms_files[-1]
@@ -117,6 +116,8 @@ parameters) are estimated before any spatiotemporal filtering using
     #     (fsl2itk, outputnode, [('out_file', 'xforms')]),
     #     (normalize_motion, outputnode, [('out_file', 'movpar_file')]),
     # ])
+
+    # fmt:off
     workflow.connect([
         (inputnode, mc, [
             ('raw_ref_image', 'basefile'),
@@ -127,5 +128,6 @@ parameters) are estimated before any spatiotemporal filtering using
         (mc2itk, outputnode, [('out_file', 'xforms')]),
         (normalize_motion, outputnode, [('out_file', 'movpar_file')]),
     ])
+    # fmt:on
 
     return workflow

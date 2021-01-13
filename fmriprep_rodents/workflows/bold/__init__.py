@@ -36,15 +36,15 @@ from .confounds import (
 )
 
 __all__ = [
-    'init_bold_confs_wf',
-    'init_bold_hmc_wf',
-    'init_bold_std_trans_wf',
-    'init_bold_preproc_trans_wf',
-    'init_bold_reg_wf',
-    'init_bold_stc_wf',
-    'init_bold_surf_wf',
-    'init_bold_t1_trans_wf',
-    'init_bold_t2s_wf',
-    'init_func_preproc_wf',
-    'init_ica_aroma_wf',
+    "init_bold_confs_wf",
+    "init_bold_hmc_wf",
+    "init_bold_std_trans_wf",
+    "init_bold_preproc_trans_wf",
+    "init_bold_reg_wf",
+    "init_bold_stc_wf",
+    "init_bold_surf_wf",
+    "init_bold_t1_trans_wf",
+    "init_bold_t2s_wf",
+    "init_func_preproc_wf",
+    "init_ica_aroma_wf",
 ]
