@@ -521,8 +521,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('outputnode.epi_mask', 'inputnode.ref_bold_mask'),
             ('outputnode.epi_brain', 'inputnode.ref_bold_brain')]),
         (bold_sdc_wf, bold_bold_trans_wf, [
-            ('outputnode.out_warp', 'inputnode.fieldwarp'),
-            ('outputnode.epi_mask', 'inputnode.bold_mask')]),
+            ('outputnode.out_warp', 'inputnode.fieldwarp')]),
         (bold_sdc_wf, bold_reg_wf, [
             ('outputnode.epi_brain', 'inputnode.ref_bold_brain')]),
         (bold_sdc_wf, summary, [('outputnode.method', 'distortion_correction')]),
@@ -545,6 +544,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('outputnode.confounds_metadata', 'confounds_metadata'),
         ]),
         # Connect bold_bold_trans_wf
+        (bold_reference_wf, bold_bold_trans_wf, [
+            ('outputnode.bold_mask', 'inputnode.bold_mask')]),
         (bold_split, bold_bold_trans_wf, [
             ('out_files', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_bold_trans_wf, [
