@@ -431,9 +431,8 @@ preprocessed BOLD runs*: {tpl}.
         "template",
     ]
 
-    poutputnode = pe.Node(
-        niu.IdentityInterface(fields=output_names), name="poutputnode"
-    )
+    poutputnode = pe.Node(niu.IdentityInterface(fields=output_names),
+                          name='poutputnode')
     # fmt:off
     workflow.connect([
         # Connecting outputnode
