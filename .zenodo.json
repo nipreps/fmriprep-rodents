@@ -1,5 +1,5 @@
 {
-  "title": "fMRIPrep: a robust preprocessing pipeline for functional MRI",
+  "title": "fMRIPrep/rodents: a robust preprocessing pipeline for rodent functional MRI",
   "description": "<p>fMRIPrep is a robust and easy-to-use pipeline for preprocessing of diverse fMRI data. The transparent workflow dispenses of manual intervention, thereby ensuring the reproducibility of the results.</p>",
   "contributors": [
       
@@ -287,7 +287,7 @@
     "fMRI",
     "BIDS"
   ],
-  "license": "BSD-3-Clause",
+  "license": "Apache-2.0",
   "related_identifiers": [
     {
       "identifier": "https://fmriprep.org",

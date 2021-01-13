@@ -1,11 +1,15 @@
 License information
 -------------------
+Copyright (c) 2021, the *NiPreps* Developers.
 
-We use the 3-clause BSD license; the full license may be found in the
-`LICENSE <https://github.com/poldracklab/fmriprep/blob/master/LICENSE>`_ file
-in the *fMRIPrep* distribution.
+*fMRIPrep/rodents* is 
+licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
 
-All trademarks referenced herein are property of their respective holders.
-
-Copyright (c) 2015-2020, the *fMRIPrep* developers and the CRN.
-All rights reserved.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
