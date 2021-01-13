@@ -911,7 +911,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                     ('std2anat_xfm', 'inputnode.std2anat_xfm')]),
                 (bold_bold_trans_wf if not multiecho else bold_t2s_wf, carpetplot_wf, [
                     ('outputnode.bold', 'inputnode.bold')]),
-                (bold_reference_wf, carpetplot_wf, [
+                (bold_bold_trans_wf, carpetplot_wf, [
                     ('outputnode.bold_mask', 'inputnode.bold_mask')]),
                 (bold_reg_wf, carpetplot_wf, [
                     ('outputnode.itk_t1_to_bold', 'inputnode.t1_bold_xform')]),
