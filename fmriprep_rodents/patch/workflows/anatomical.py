@@ -6,11 +6,12 @@ from nipype.interfaces import fsl, utility as niu
 from nipype.interfaces.ants.base import Info as ANTsInfo
 from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
 from niworkflows.interfaces.images import ValidateImage
+from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.utility import KeySelect
 from smriprep.utils.misc import apply_lut as _apply_bids_lut
 from smriprep.workflows.anatomical import init_anat_template_wf
-from templateflow.api import get_metadata
+from templateflow.api import get_metadata, get
 
 from ..interfaces import TemplateFlowSelect
 from ..utils import fix_multi_source_name
@@ -30,7 +31,6 @@ def init_anat_preproc_wf(
     spaces,
     debug=False,
     existing_derivatives=None,
-    freesurfer=False,
     name="anat_preproc_wf",
     skull_strip_fixed_seed=False,
 ):
@@ -100,10 +100,7 @@ def init_anat_preproc_wf(
         A mask to exclude regions during standardization
     flair
         List of FLAIR images
-    subjects_dir
-        FreeSurfer SUBJECTS_DIR
-    subject_id
-        FreeSurfer subject ID
+
     Outputs
     -------
     t1w_preproc
@@ -113,11 +110,11 @@ def init_anat_preproc_wf(
         Skull-stripped ``t1w_preproc``
     t1w_mask
         Brain (binary) mask estimated by brain extraction.
-    t1w_dseg
+    anat_dseg
         Brain tissue segmentation of the preprocessed structural image, including
         gray-matter (GM), white-matter (WM) and cerebrospinal fluid (CSF).
-    t1w_tpms
-        List of tissue probability maps corresponding to ``t1w_dseg``.
+    anat_tpms
+        List of tissue probability maps corresponding to ``anat_dseg``.
     std_preproc
         T1w reference resampled in one or more standard spaces.
     std_mask
@@ -168,20 +165,15 @@ BIDS dataset."""
     )
 
     # Connect reportlets workflows
-    anat_reports_wf = init_anat_reports_wf(freesurfer=False, output_dir=output_dir,)
-    workflow.connect(
-        [
-            (
-                outputnode,
-                anat_reports_wf,
-                [
-                    ("t2w_preproc", "inputnode.t1w_preproc"),
-                    ("t2w_mask", "inputnode.t1w_mask"),
-                    ("t2w_dseg", "inputnode.t1w_dseg"),
-                ],
-            ),
-        ]
-    )
+    anat_reports_wf = init_anat_reports_wf(output_dir=output_dir,)
+    # fmt:off
+    workflow.connect([
+        (outputnode, anat_reports_wf, [
+            ('t2w_preproc', 'inputnode.t1w_preproc'),
+            ('t2w_mask', 'inputnode.t1w_mask'),
+            ('t2w_dseg', 'inputnode.anat_dseg')]),
+    ])
+    # fmt:on
 
     if existing_derivatives is not None:
         LOGGER.log(
@@ -213,38 +205,24 @@ Anatomical preprocessing was reused from previously existing derivative objects.
             name="stdselect",
             run_without_submitting=True,
         )
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    outputnode,
-                    [("subjects_dir", "subjects_dir"), ("subject_id", "subject_id")],
-                ),
-                (
-                    inputnode,
-                    anat_reports_wf,
-                    [
-                        ("subjects_dir", "inputnode.subjects_dir"),
-                        ("subject_id", "inputnode.subject_id"),
-                    ],
-                ),
-                (templatesource, stdselect, [("template", "key")]),
-                (
-                    outputnode,
-                    stdselect,
-                    [("std_preproc", "std_preproc"), ("std_mask", "std_mask")],
-                ),
-                (
-                    stdselect,
-                    anat_reports_wf,
-                    [
-                        ("key", "inputnode.template"),
-                        ("std_preproc", "inputnode.std_t1w"),
-                        ("std_mask", "inputnode.std_mask"),
-                    ],
-                ),
-            ]
-        )
+        # fmt:off
+        workflow.connect([
+            (inputnode, outputnode, [("subjects_dir", "subjects_dir"),
+                                     ("subject_id", "subject_id")]),
+            (inputnode, anat_reports_wf, [
+                ("subjects_dir", "inputnode.subjects_dir"),
+                ("subject_id", "inputnode.subject_id"),
+            ]),
+            (templatesource, stdselect, [("template", "key")]),
+            (outputnode, stdselect, [("std_preproc", "std_preproc"),
+                                     ("std_mask", "std_mask")]),
+            (stdselect, anat_reports_wf, [
+                ("key", "inputnode.template"),
+                ("std_preproc", "inputnode.std_t1w"),
+                ("std_mask", "inputnode.std_mask"),
+            ]),
+        ])
+        # fmt:on
         return workflow
 
     # The workflow is not cached.
@@ -328,174 +306,150 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             template_id=skull_strip_template.space, omp_nthreads=omp_nthreads,
         )
 
-    # 4. Spatial normalization
+    # 3. Spatial normalization
     anat_norm_wf = init_anat_norm_wf(
         debug=debug,
         omp_nthreads=omp_nthreads,
         templates=spaces.get_spaces(nonstandard=False, dim=(3,)),
     )
 
-    workflow.connect(
-        [
-            # Step 1.
-            (inputnode, anat_template_wf, [("t2w", "inputnode.t1w")]),
-            (anat_template_wf, anat_validate, [("outputnode.t1w_ref", "in_file")]),
-            (anat_validate, brain_extraction_wf, [("out_file", "inputnode.in_files")]),
-            (
-                brain_extraction_wf,
-                outputnode,
-                [(("outputnode.out_corrected", _pop), "t2w_preproc")],
-            ),
-            (
-                anat_template_wf,
-                outputnode,
-                [("outputnode.t1w_realign_xfm", "t2w_ref_xfms")],
-            ),
-            (
-                buffernode,
-                outputnode,
-                [("t2w_brain", "t2w_brain"), ("t2w_mask", "t2w_mask")],
-            ),
-            # Steps 2, 3 and 4
-            (
-                inputnode,
-                anat_norm_wf,
-                [
-                    (("t2w", fix_multi_source_name), "inputnode.orig_t1w"),
-                    ("roi", "inputnode.lesion_mask"),
-                ],
-            ),
-            (
-                brain_extraction_wf,
-                anat_norm_wf,
-                [(("outputnode.out_corrected", _pop), "inputnode.moving_image")],
-            ),
-            (buffernode, anat_norm_wf, [("t2w_mask", "inputnode.moving_mask")]),
-            (
-                anat_norm_wf,
-                outputnode,
-                [
-                    ("poutputnode.standardized", "std_preproc"),
-                    ("poutputnode.std_mask", "std_mask"),
-                    ("poutputnode.std_dseg", "std_dseg"),
-                    ("poutputnode.std_tpms", "std_tpms"),
-                    ("outputnode.template", "template"),
-                    ("outputnode.anat2std_xfm", "anat2std_xfm"),
-                    ("outputnode.std2anat_xfm", "std2anat_xfm"),
-                ],
-            ),
-        ]
-    )
-
-    # Change LookUp Table - BIDS wants: 0 (bg), 1 (gm), 2 (wm), 3 (csf)
-    lut_t1w_dseg = pe.Node(niu.Function(function=_apply_bids_lut), name="lut_t1w_dseg")
-
-    workflow.connect(
-        [
-            (lut_t1w_dseg, anat_norm_wf, [("out", "inputnode.moving_segmentation")]),
-            (lut_t1w_dseg, outputnode, [("out", "t2w_dseg")]),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        # Step 1.
+        (inputnode, anat_template_wf, [('t2w', 'inputnode.t1w')]),
+        (anat_template_wf, anat_validate, [
+            ('outputnode.t1w_ref', 'in_file')]),
+        (anat_validate, brain_extraction_wf, [
+            ('out_file', 'inputnode.in_files')]),
+        (brain_extraction_wf, outputnode, [
+            (('outputnode.out_corrected', _pop), 't2w_preproc')]),
+        (anat_template_wf, outputnode, [
+            ('outputnode.t1w_realign_xfm', 't2w_ref_xfms')]),
+        (buffernode, outputnode, [('t2w_brain', 't2w_brain'),
+                                  ('t2w_mask', 't2w_mask')]),
+        # Steps 2, 3 and 4
+        (inputnode, anat_norm_wf, [
+            (('t2w', fix_multi_source_name), 'inputnode.orig_t1w'),
+            ('roi', 'inputnode.lesion_mask')]),
+        (brain_extraction_wf, anat_norm_wf, [
+            (('outputnode.out_corrected', _pop), 'inputnode.moving_image')]),
+        (buffernode, anat_norm_wf, [('t2w_mask', 'inputnode.moving_mask')]),
+        (anat_norm_wf, outputnode, [
+            ('poutputnode.standardized', 'std_preproc'),
+            ('poutputnode.std_mask', 'std_mask'),
+            ('outputnode.template', 'template'),
+            ('outputnode.anat2std_xfm', 'anat2std_xfm'),
+            ('outputnode.std2anat_xfm', 'std2anat_xfm'),
+        ]),
+    ])
+    # fmt:on
 
     # Connect reportlets
-    workflow.connect(
-        [
-            (
-                inputnode,
-                anat_reports_wf,
-                [(("t2w", fix_multi_source_name), "inputnode.source_file")],
-            ),
-            (
-                outputnode,
-                anat_reports_wf,
-                [
-                    ("std_preproc", "inputnode.std_t1w"),
-                    ("std_mask", "inputnode.std_mask"),
-                ],
-            ),
-            (
-                anat_template_wf,
-                anat_reports_wf,
-                [("outputnode.out_report", "inputnode.t1w_conform_report")],
-            ),
-            (
-                anat_norm_wf,
-                anat_reports_wf,
-                [("poutputnode.template", "inputnode.template")],
-            ),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        (inputnode, anat_reports_wf, [
+            (("t2w", fix_multi_source_name), "inputnode.source_file"),
+        ]),
+        (outputnode, anat_reports_wf, [
+            ("std_preproc", "inputnode.std_t1w"),
+            ("std_mask", "inputnode.std_mask"),
+        ]),
+        (anat_template_wf, anat_reports_wf, [
+            ("outputnode.out_report", "inputnode.t1w_conform_report"),
+        ]),
+        (anat_norm_wf, anat_reports_wf, [
+            ("poutputnode.template", "inputnode.template"),
+        ]),
+    ])
+    # fmt:on
 
     # Write outputs ############################################3
     anat_derivatives_wf = init_anat_derivatives_wf(
         bids_root=bids_root,
-        freesurfer=freesurfer,
         num_t1w=num_t2w,
         output_dir=output_dir,
         spaces=spaces,
     )
 
-    workflow.connect(
-        [
-            # Connect derivatives
-            (
-                anat_template_wf,
-                anat_derivatives_wf,
-                [("outputnode.t1w_valid_list", "inputnode.source_files")],
-            ),
-            (
-                anat_norm_wf,
-                anat_derivatives_wf,
-                [
-                    ("outputnode.template", "inputnode.template"),
-                    ("outputnode.anat2std_xfm", "inputnode.anat2std_xfm"),
-                    ("outputnode.std2anat_xfm", "inputnode.std2anat_xfm"),
-                ],
-            ),
-            (
-                outputnode,
-                anat_derivatives_wf,
-                [
-                    ("t2w_ref_xfms", "inputnode.t1w_ref_xfms"),
-                    ("t2w_preproc", "inputnode.t1w_preproc"),
-                    ("t2w_mask", "inputnode.t1w_mask"),
-                    ("t2w_dseg", "inputnode.t1w_dseg"),
-                    ("t2w_tpms", "inputnode.t1w_tpms"),
-                ],
-            ),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        # Connect derivatives
+        (anat_template_wf, anat_derivatives_wf, [
+            ('outputnode.t1w_valid_list', 'inputnode.source_files')]),
+        (anat_norm_wf, anat_derivatives_wf, [
+            ('outputnode.template', 'inputnode.template'),
+            ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+            ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')
+        ]),
+        (outputnode, anat_derivatives_wf, [
+            ('t2w_ref_xfms', 'inputnode.t1w_ref_xfms'),
+            ('t2w_preproc', 'inputnode.t1w_preproc'),
+            ('t2w_mask', 'inputnode.t1w_mask'),
+        ]),
+    ])
+    # fmt:on
 
-    # Brain tissue segmentation - FAST produces: 0 (bg), 1 (wm), 2 (csf), 3 (gm)
-    t1w_dseg = pe.Node(
-        fsl.FAST(segments=True, no_bias=True, probability_maps=True),
-        name="t1w_dseg",
-        mem_gb=3,
-    )
-    lut_t1w_dseg.inputs.lut = (0, 3, 1, 2)  # Maps: 0 -> 0, 3 -> 1, 1 -> 2, 2 -> 3.
-    fast2bids = pe.Node(
-        niu.Function(function=_probseg_fast2bids),
-        name="fast2bids",
-        run_without_submitting=True,
-    )
+    # 4. Brain tissue segmentation - FAST produces: 0 (bg), 1 (wm), 2 (csf), 3 (gm)
+    gm_tpm = get('Fischer344', label='GM', suffix='probseg')
+    wm_tpm = get('Fischer344', label='WM', suffix='probseg')
+    csf_tpm = get('Fischer344', label='CSF', suffix='probseg')
 
-    workflow.connect(
-        [
-            (
-                brain_extraction_wf,
-                buffernode,
-                [
-                    (("outputnode.out_brain", _pop), "t2w_brain"),
-                    ("outputnode.out_mask", "t2w_mask"),
-                ],
-            ),
-            (buffernode, t1w_dseg, [("t2w_brain", "in_files")]),
-            (t1w_dseg, lut_t1w_dseg, [("partial_volume_map", "in_dseg")]),
-            (t1w_dseg, fast2bids, [("partial_volume_files", "inlist")]),
-            (fast2bids, anat_norm_wf, [("out", "inputnode.moving_tpms")]),
-            (fast2bids, outputnode, [("out", "t2w_tpms")]),
-        ]
-    )
+    xfm_gm = pe.Node(ApplyTransforms(
+        input_image=_pop(gm_tpm),
+        interpolation='MultiLabel'),
+        name="xfm_gm")
+    xfm_wm = pe.Node(ApplyTransforms(
+        input_image=_pop(wm_tpm),
+        interpolation='MultiLabel'),
+        name="xfm_wm")
+    xfm_csf = pe.Node(ApplyTransforms(
+        input_image=_pop(csf_tpm),
+        interpolation='MultiLabel'),
+        name="xfm_csf")
+
+    mrg_tpms = pe.Node(niu.Merge(3), name='mrg_tpms')
+
+    anat_dseg = pe.Node(fsl.FAST(segments=True, no_bias=True, probability_maps=True),
+                        name='anat_dseg', mem_gb=3)
+    # Change LookUp Table - BIDS wants: 0 (bg), 1 (gm), 2 (wm), 3 (csf)
+    lut_anat_dseg = pe.Node(niu.Function(function=_apply_bids_lut),
+                            name='lut_anat_dseg')
+    lut_anat_dseg.inputs.lut = (0, 3, 1, 2)  # Maps: 0 -> 0, 3 -> 1, 1 -> 2, 2 -> 3.
+    fast2bids = pe.Node(niu.Function(function=_probseg_fast2bids), name="fast2bids",
+                        run_without_submitting=True)
+
+    # fmt:off
+    workflow.connect([
+        (brain_extraction_wf, buffernode, [
+            (('outputnode.out_brain', _pop), 't2w_brain'),
+            ('outputnode.out_mask', 't2w_mask')]),
+        (buffernode, anat_dseg, [('t2w_brain', 'in_files')]),
+        (brain_extraction_wf, xfm_gm, [(
+            ('outputnode.out_corrected', _pop), 'reference_image')]),
+        (brain_extraction_wf, xfm_wm, [(
+            ('outputnode.out_corrected', _pop), 'reference_image')]),
+        (brain_extraction_wf, xfm_csf, [(
+            ('outputnode.out_corrected', _pop), 'reference_image')]),
+        (anat_norm_wf, xfm_gm, [(
+            'outputnode.std2anat_xfm', 'transforms')]),
+        (anat_norm_wf, xfm_wm, [(
+            'outputnode.std2anat_xfm', 'transforms')]),
+        (anat_norm_wf, xfm_csf, [(
+            'outputnode.std2anat_xfm', 'transforms')]),
+        (xfm_gm, mrg_tpms, [('output_image', 'in1')]),
+        (xfm_wm, mrg_tpms, [('output_image', 'in2')]),
+        (xfm_csf, mrg_tpms, [('output_image', 'in3')]),
+        (mrg_tpms, anat_dseg, [('out', 'other_priors')]),
+        (anat_dseg, lut_anat_dseg, [('partial_volume_map', 'in_dseg')]),
+        (lut_anat_dseg, outputnode, [('out', 't2w_dseg')]),
+        (anat_dseg, fast2bids, [('partial_volume_files', 'inlist')]),
+        (fast2bids, outputnode, [('out', 't2w_tpms')]),
+        (outputnode, anat_derivatives_wf, [
+            ('t2w_tpms', 'inputnode.anat_tpms'),
+            ('t2w_dseg', 'inputnode.anat_dseg')
+        ]),
+    ])
+    # fmt:on
     return workflow
 
 
@@ -584,7 +538,6 @@ def init_anat_norm_wf(
     """
     from collections import defaultdict
     from nipype.interfaces.ants import ImageMath
-    from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from smriprep.interfaces.templateflow import TemplateDesc
     from ..interfaces import RobustMNINormalization
 
@@ -674,71 +627,53 @@ The following template{tpls} selected for spatial normalization:
     )
 
     # Resample T1w-space inputs
-    tpl_moving = pe.Node(
-        ApplyTransforms(
-            dimension=3,
-            default_value=0,
-            float=True,
-            interpolation="LanczosWindowedSinc",
-        ),
-        name="tpl_moving",
-    )
+    tpl_moving = pe.Node(ApplyTransforms(
+        dimension=3, default_value=0, float=True,
+        interpolation='LanczosWindowedSinc'), name='tpl_moving')
 
-    std_mask = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="std_mask")
-    std_dseg = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="std_dseg")
+    std_mask = pe.Node(ApplyTransforms(interpolation='MultiLabel'), name='std_mask')
+    std_dseg = pe.Node(ApplyTransforms(interpolation='MultiLabel'), name='std_dseg')
 
-    std_tpms = pe.MapNode(
-        ApplyTransforms(
-            dimension=3, default_value=0, float=True, interpolation="Gaussian"
-        ),
-        iterfield=["input_image"],
-        name="std_tpms",
-    )
+    std_tpms = pe.MapNode(ApplyTransforms(dimension=3, default_value=0, float=True,
+                                          interpolation='Gaussian'),
+                          iterfield=['input_image'], name='std_tpms')
 
-    workflow.connect(
-        [
-            (inputnode, split_desc, [("template", "template")]),
-            (inputnode, poutputnode, [("template", "template")]),
-            (inputnode, trunc_mov, [("moving_image", "op1")]),
-            (
-                inputnode,
-                registration,
-                [("moving_mask", "moving_mask"), ("lesion_mask", "lesion_mask")],
-            ),
-            (inputnode, tpl_moving, [("moving_image", "input_image")]),
-            (inputnode, std_mask, [("moving_mask", "input_image")]),
-            (split_desc, tf_select, [("name", "template"), ("spec", "template_spec")]),
-            (
-                split_desc,
-                registration,
-                [("name", "template"), (("spec", _no_atlas), "template_spec")],
-            ),
-            (tf_select, tpl_moving, [("t2w_file", "reference_image")]),
-            (tf_select, std_mask, [("t2w_file", "reference_image")]),
-            (tf_select, std_dseg, [("t2w_file", "reference_image")]),
-            (tf_select, std_tpms, [("t2w_file", "reference_image")]),
-            (trunc_mov, registration, [("output_image", "moving_image")]),
-            (registration, tpl_moving, [("composite_transform", "transforms")]),
-            (registration, std_mask, [("composite_transform", "transforms")]),
-            (inputnode, std_dseg, [("moving_segmentation", "input_image")]),
-            (registration, std_dseg, [("composite_transform", "transforms")]),
-            (inputnode, std_tpms, [("moving_tpms", "input_image")]),
-            (registration, std_tpms, [("composite_transform", "transforms")]),
-            (
-                registration,
-                poutputnode,
-                [
-                    ("composite_transform", "anat2std_xfm"),
-                    ("inverse_composite_transform", "std2anat_xfm"),
-                ],
-            ),
-            (tpl_moving, poutputnode, [("output_image", "standardized")]),
-            (std_mask, poutputnode, [("output_image", "std_mask")]),
-            (std_dseg, poutputnode, [("output_image", "std_dseg")]),
-            (std_tpms, poutputnode, [("output_image", "std_tpms")]),
-            (split_desc, poutputnode, [("spec", "template_spec")]),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        (inputnode, split_desc, [('template', 'template')]),
+        (inputnode, poutputnode, [('template', 'template')]),
+        (inputnode, trunc_mov, [('moving_image', 'op1')]),
+        (inputnode, registration, [
+            ('moving_mask', 'moving_mask'),
+            ('lesion_mask', 'lesion_mask')]),
+        (inputnode, tpl_moving, [('moving_image', 'input_image')]),
+        (inputnode, std_mask, [('moving_mask', 'input_image')]),
+        (split_desc, tf_select, [('name', 'template'),
+                                 ('spec', 'template_spec')]),
+        (split_desc, registration, [('name', 'template'),
+                                    (('spec', _no_atlas), 'template_spec')]),
+        (tf_select, tpl_moving, [('t2w_file', 'reference_image')]),
+        (tf_select, std_mask, [('t2w_file', 'reference_image')]),
+        # (tf_select, std_dseg, [('t2w_file', 'reference_image')]),
+        # (tf_select, std_tpms, [('t2w_file', 'reference_image')]),
+        (trunc_mov, registration, [
+            ('output_image', 'moving_image')]),
+        (registration, tpl_moving, [('composite_transform', 'transforms')]),
+        (registration, std_mask, [('composite_transform', 'transforms')]),
+        # (inputnode, std_dseg, [('moving_segmentation', 'input_image')]),
+        # (registration, std_dseg, [('composite_transform', 'transforms')]),
+        # (inputnode, std_tpms, [('moving_tpms', 'input_image')]),
+        # (registration, std_tpms, [('composite_transform', 'transforms')]),
+        (registration, poutputnode, [
+            ('composite_transform', 'anat2std_xfm'),
+            ('inverse_composite_transform', 'std2anat_xfm')]),
+        (tpl_moving, poutputnode, [('output_image', 'standardized')]),
+        (std_mask, poutputnode, [('output_image', 'std_mask')]),
+        # (std_dseg, poutputnode, [('output_image', 'std_dseg')]),
+        # (std_tpms, poutputnode, [('output_image', 'std_tpms')]),
+        (split_desc, poutputnode, [('spec', 'template_spec')]),
+    ])
+    # fmt:on
 
     # Provide synchronized output
     outputnode = pe.JoinNode(
@@ -753,17 +688,17 @@ The following template{tpls} selected for spatial normalization:
     return workflow
 
 
-def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
+def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
     """
     Set up a battery of datasinks to store reports in the right location.
+
     Parameters
     ----------
-    freesurfer : :obj:`bool`
-        FreeSurfer was enabled
     output_dir : :obj:`str`
         Directory in which to save derivatives
     name : :obj:`str`
         Workflow name (default: anat_reports_wf)
+
     Inputs
     ------
     source_file
@@ -781,12 +716,13 @@ def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
     t1w_preproc
         The T1w reference map, which is calculated as the average of bias-corrected
         and preprocessed T1w images, defining the anatomical space.
-    t1w_dseg
+    anat_dseg
         Segmentation in T1w space
     t1w_mask
         Brain (binary) mask estimated by brain extraction.
     template
         Template space and specifications
+
     """
     from niworkflows.interfaces import SimpleBeforeAfter
     from niworkflows.interfaces.masks import ROIsPlot
@@ -794,19 +730,12 @@ def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
 
     workflow = Workflow(name=name)
 
-    inputfields = [
-        "source_file",
-        "t1w_conform_report",
-        "t1w_preproc",
-        "t1w_dseg",
-        "t1w_mask",
-        "template",
-        "std_t1w",
-        "std_mask",
-        "subject_id",
-        "subjects_dir",
-    ]
-    inputnode = pe.Node(niu.IdentityInterface(fields=inputfields), name="inputnode")
+    inputfields = ['source_file', 't1w_conform_report',
+                   't1w_preproc', 'anat_dseg', 't1w_mask',
+                   'template', 'std_t1w', 'std_mask',
+                   'subject_id', 'subjects_dir']
+    inputnode = pe.Node(niu.IdentityInterface(fields=inputfields),
+                        name='inputnode')
 
     seg_rpt = pe.Node(
         ROIsPlot(colors=["b", "magenta"], levels=[1.5, 2.5]), name="seg_rpt"
@@ -829,35 +758,23 @@ def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
         run_without_submitting=True,
     )
 
-    ds_t1w_dseg_mask_report = pe.Node(
-        DerivativesDataSink(
-            base_directory=output_dir,
-            suffix="dseg",
-            datatype="figures",
-            dismiss_entities=("session",),
-        ),
-        name="ds_t1w_dseg_mask_report",
-        run_without_submitting=True,
-    )
+    ds_anat_dseg_mask_report = pe.Node(
+        DerivativesDataSink(base_directory=output_dir, suffix='dseg', datatype="figures",
+                            dismiss_entities=("session",)),
+        name='ds_anat_dseg_mask_report', run_without_submitting=True)
 
-    workflow.connect(
-        [
-            (inputnode, t1w_conform_check, [("t1w_conform_report", "in_file")]),
-            (t1w_conform_check, ds_t1w_conform_report, [("out", "in_file")]),
-            (inputnode, ds_t1w_conform_report, [("source_file", "source_file")]),
-            (inputnode, ds_t1w_dseg_mask_report, [("source_file", "source_file")]),
-            (
-                inputnode,
-                seg_rpt,
-                [
-                    ("t1w_preproc", "in_file"),
-                    ("t1w_mask", "in_mask"),
-                    ("t1w_dseg", "in_rois"),
-                ],
-            ),
-            (seg_rpt, ds_t1w_dseg_mask_report, [("out_report", "in_file")]),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        (inputnode, t1w_conform_check, [('t1w_conform_report', 'in_file')]),
+        (t1w_conform_check, ds_t1w_conform_report, [('out', 'in_file')]),
+        (inputnode, ds_t1w_conform_report, [('source_file', 'source_file')]),
+        (inputnode, ds_anat_dseg_mask_report, [('source_file', 'source_file')]),
+        (inputnode, seg_rpt, [('t1w_preproc', 'in_file'),
+                              ('t1w_mask', 'in_mask'),
+                              ('anat_dseg', 'in_rois')]),
+        (seg_rpt, ds_anat_dseg_mask_report, [('out_report', 'in_file')]),
+    ])
+    # fmt:on
 
     # Generate reportlets showing spatial normalization
     tf_select = pe.Node(
@@ -904,41 +821,12 @@ def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
         ]
     )
 
-    if freesurfer:
-        from ..interfaces.reports import FSSurfaceReport
-
-        recon_report = pe.Node(FSSurfaceReport(), name="recon_report")
-        recon_report.interface._always_run = True
-
-        ds_recon_report = pe.Node(
-            DerivativesDataSink(
-                base_directory=output_dir,
-                desc="reconall",
-                datatype="figures",
-                dismiss_entities=("session",),
-            ),
-            name="ds_recon_report",
-            run_without_submitting=True,
-        )
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    recon_report,
-                    [("subjects_dir", "subjects_dir"), ("subject_id", "subject_id")],
-                ),
-                (recon_report, ds_recon_report, [("out_report", "in_file")]),
-                (inputnode, ds_recon_report, [("source_file", "source_file")]),
-            ]
-        )
-
     return workflow
 
 
 def init_anat_derivatives_wf(
     *,
     bids_root,
-    freesurfer,
     num_t1w,
     output_dir,
     spaces,
@@ -951,8 +839,6 @@ def init_anat_derivatives_wf(
     ----------
     bids_root : :obj:`str`
         Root path of BIDS dataset
-    freesurfer : :obj:`bool`
-        FreeSurfer was enabled
     num_t1w : :obj:`int`
         Number of T1w images
     output_dir : :obj:`str`
@@ -974,9 +860,9 @@ def init_anat_derivatives_wf(
         and preprocessed T1w images, defining the anatomical space.
     t1w_mask
         Mask of the ``t1w_preproc``
-    t1w_dseg
+    anat_dseg
         Segmentation in T1w space
-    t1w_tpms
+    anat_tpms
         Tissue probability maps in T1w space
     anat2std_xfm
         Nonlinear spatial transform to resample imaging data given in anatomical space
@@ -999,10 +885,6 @@ def init_anat_derivatives_wf(
         subject space to T1w
     surfaces
         GIFTI surfaces (gray/white boundary, midthickness, pial, inflated)
-    t1w_fs_aseg
-        FreeSurfer's aseg segmentation, in native T1w space
-    t1w_fs_aparc
-        FreeSurfer's aparc+aseg segmentation, in native T1w space
     """
     from niworkflows.interfaces.utility import KeySelect
     from smriprep.interfaces import DerivativesDataSink
@@ -1017,27 +899,13 @@ def init_anat_derivatives_wf(
 
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=[
-                "template",
-                "source_files",
-                "t1w_ref_xfms",
-                "t1w_preproc",
-                "t1w_mask",
-                "t1w_dseg",
-                "t1w_tpms",
-                "anat2std_xfm",
-                "std2anat_xfm",
-                "t1w2fsnative_xfm",
-                "fsnative2t1w_xfm",
-                "surfaces",
-                "t1w_fs_aseg",
-                "t1w_fs_aparc",
-            ]
-        ),
-        name="inputnode",
-    )
+            fields=['template', 'source_files', 't1w_ref_xfms',
+                    't1w_preproc', 't1w_mask', 'anat_dseg', 'anat_tpms',
+                    'anat2std_xfm', 'std2anat_xfm',
+                    't1w2fsnative_xfm', 'fsnative2t1w_xfm', 'surfaces']),
+        name='inputnode')
 
-    raw_sources = pe.Node(niu.Function(function=_bids_relative), name="raw_sources")
+    raw_sources = pe.Node(niu.Function(function=_bids_relative), name='raw_sources')
     raw_sources.inputs.bids_root = bids_root
 
     ds_t1w_preproc = pe.Node(
@@ -1056,45 +924,29 @@ def init_anat_derivatives_wf(
     )
     ds_t1w_mask.inputs.Type = "Brain"
 
-    ds_t1w_dseg = pe.Node(
-        DerivativesDataSink(base_directory=output_dir, suffix="dseg", compress=True),
-        name="ds_t1w_dseg",
-        run_without_submitting=True,
-    )
+    ds_anat_dseg = pe.Node(
+        DerivativesDataSink(base_directory=output_dir, suffix='dseg', compress=True),
+        name='ds_anat_dseg', run_without_submitting=True)
 
-    ds_t1w_tpms = pe.Node(
-        DerivativesDataSink(base_directory=output_dir, suffix="probseg", compress=True),
-        name="ds_t1w_tpms",
-        run_without_submitting=True,
-    )
-    ds_t1w_tpms.inputs.label = tpm_labels
+    ds_anat_tpms = pe.Node(
+        DerivativesDataSink(base_directory=output_dir, suffix='probseg', compress=True),
+        name='ds_anat_tpms', run_without_submitting=True)
+    ds_anat_tpms.inputs.label = tpm_labels
 
-    workflow.connect(
-        [
-            (inputnode, raw_sources, [("source_files", "in_files")]),
-            (
-                inputnode,
-                ds_t1w_preproc,
-                [("t1w_preproc", "in_file"), ("source_files", "source_file")],
-            ),
-            (
-                inputnode,
-                ds_t1w_mask,
-                [("t1w_mask", "in_file"), ("source_files", "source_file")],
-            ),
-            (
-                inputnode,
-                ds_t1w_tpms,
-                [("t1w_tpms", "in_file"), ("source_files", "source_file")],
-            ),
-            (
-                inputnode,
-                ds_t1w_dseg,
-                [("t1w_dseg", "in_file"), ("source_files", "source_file")],
-            ),
-            (raw_sources, ds_t1w_mask, [("out", "RawSources")]),
-        ]
-    )
+    # fmt:off
+    workflow.connect([
+        (inputnode, raw_sources, [('source_files', 'in_files')]),
+        (inputnode, ds_t1w_preproc, [('t1w_preproc', 'in_file'),
+                                     ('source_files', 'source_file')]),
+        (inputnode, ds_t1w_mask, [('t1w_mask', 'in_file'),
+                                  ('source_files', 'source_file')]),
+        (inputnode, ds_anat_tpms, [('anat_tpms', 'in_file'),
+                                   ('source_files', 'source_file')]),
+        (inputnode, ds_anat_dseg, [('anat_dseg', 'in_file'),
+                                   ('source_files', 'source_file')]),
+        (raw_sources, ds_t1w_mask, [('out', 'RawSources')]),
+    ])
+    # fmt:on
 
     # Transforms
     if spaces.get_spaces(nonstandard=False, dim=(3,)):
@@ -1116,28 +968,20 @@ def init_anat_derivatives_wf(
             run_without_submitting=True,
         )
 
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    ds_t1w2std_xfm,
-                    [
-                        ("anat2std_xfm", "in_file"),
-                        (("template", _combine_cohort), "to"),
-                        ("source_files", "source_file"),
-                    ],
-                ),
-                (
-                    inputnode,
-                    ds_std2t1w_xfm,
-                    [
-                        ("std2anat_xfm", "in_file"),
-                        (("template", _combine_cohort), "from"),
-                        ("source_files", "source_file"),
-                    ],
-                ),
-            ]
-        )
+        # fmt:off
+        workflow.connect([
+            (inputnode, ds_t1w2std_xfm, [
+                ("anat2std_xfm", "in_file"),
+                (("template", _combine_cohort), "to"),
+                ("source_files", "source_file"),
+            ]),
+            (inputnode, ds_std2t1w_xfm, [
+                ("std2anat_xfm", "in_file"),
+                (("template", _combine_cohort), "from"),
+                ("source_files", "source_file"),
+            ]),
+        ])
+        # fmt:on
 
     if num_t1w > 1:
         # Please note the dictionary unpacking to provide the from argument.
@@ -1155,15 +999,12 @@ def init_anat_derivatives_wf(
             name="ds_t1w_ref_xfms",
             run_without_submitting=True,
         )
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    ds_t1w_ref_xfms,
-                    [("source_files", "source_file"), ("t1w_ref_xfms", "in_file")],
-                ),
-            ]
-        )
+        # fmt:off
+        workflow.connect([
+            (inputnode, ds_t1w_ref_xfms, [("source_files", "source_file"),
+                                          ("t1w_ref_xfms", "in_file")]),
+        ])
+        # fmt:on
 
     # Write derivatives in standard spaces specified by --output-spaces
     if getattr(spaces, "_cached") is not None and spaces.cached.references:
@@ -1264,38 +1105,31 @@ def init_anat_derivatives_wf(
         #           (intensity mean, per tissue). This order HAS to be matched also by the ``tpms``
         #           output in the data/io_spec.json file.
         ds_std_tpms.inputs.label = tpm_labels
-        workflow.connect(
-            [
-                (inputnode, anat2std_t1w, [("t1w_preproc", "input_image")]),
-                (inputnode, anat2std_mask, [("t1w_mask", "input_image")]),
-                (inputnode, anat2std_dseg, [("t1w_dseg", "input_image")]),
-                (inputnode, anat2std_tpms, [("t1w_tpms", "input_image")]),
-                (inputnode, gen_ref, [("t1w_preproc", "moving_image")]),
-                (
-                    inputnode,
-                    select_xfm,
-                    [("anat2std_xfm", "anat2std_xfm"), ("template", "keys")],
-                ),
-                (spacesource, gen_tplid, [("space", "template"), ("cohort", "cohort")]),
-                (gen_tplid, select_xfm, [("out", "key")]),
-                (
-                    spacesource,
-                    select_tpl,
-                    [
-                        ("space", "template"),
-                        ("cohort", "cohort"),
-                        (("resolution", _no_native), "resolution"),
-                    ],
-                ),
-                (spacesource, gen_ref, [(("resolution", _is_native), "keep_native")]),
-                (select_tpl, gen_ref, [("t2w_file", "fixed_image")]),
-                (anat2std_t1w, ds_std_t1w, [("output_image", "in_file")]),
-                (anat2std_mask, ds_std_mask, [("output_image", "in_file")]),
-                (anat2std_dseg, ds_std_dseg, [("output_image", "in_file")]),
-                (anat2std_tpms, ds_std_tpms, [("output_image", "in_file")]),
-                (select_tpl, ds_std_mask, [(("brain_mask", _drop_path), "RawSources")]),
-            ]
-        )
+
+        # fmt:off
+        workflow.connect([
+            (inputnode, anat2std_t1w, [('t1w_preproc', 'input_image')]),
+            (inputnode, anat2std_mask, [('t1w_mask', 'input_image')]),
+            (inputnode, anat2std_dseg, [('anat_dseg', 'input_image')]),
+            (inputnode, anat2std_tpms, [('anat_tpms', 'input_image')]),
+            (inputnode, gen_ref, [('t1w_preproc', 'moving_image')]),
+            (inputnode, select_xfm, [
+                ('anat2std_xfm', 'anat2std_xfm'),
+                ('template', 'keys')]),
+            (spacesource, gen_tplid, [('space', 'template'),
+                                      ('cohort', 'cohort')]),
+            (gen_tplid, select_xfm, [('out', 'key')]),
+            (spacesource, select_tpl, [('space', 'template'),
+                                       ('cohort', 'cohort'),
+                                       (('resolution', _no_native), 'resolution')]),
+            (spacesource, gen_ref, [(('resolution', _is_native), 'keep_native')]),
+            (select_tpl, gen_ref, [('t2w_file', 'fixed_image')]),
+            (anat2std_t1w, ds_std_t1w, [('output_image', 'in_file')]),
+            (anat2std_mask, ds_std_mask, [('output_image', 'in_file')]),
+            (anat2std_dseg, ds_std_dseg, [('output_image', 'in_file')]),
+            (anat2std_tpms, ds_std_tpms, [('output_image', 'in_file')]),
+            (select_tpl, ds_std_mask, [(('brain_mask', _drop_path), 'RawSources')]),
+        ])
 
         workflow.connect(
             # Connect apply transforms nodes
@@ -1314,18 +1148,13 @@ def init_anat_derivatives_wf(
             ]
             # Connect the space input of these datasinks
             + [
-                (
-                    spacesource,
-                    n,
-                    [
-                        ("space", "space"),
-                        ("cohort", "cohort"),
-                        ("resolution", "resolution"),
-                    ],
-                )
+                (spacesource, n, [("space", "space"),
+                                  ("cohort", "cohort"),
+                                  ("resolution", "resolution")])
                 for n in (ds_std_t1w, ds_std_mask, ds_std_dseg, ds_std_tpms)
             ]
         )
+    # fmt:on
 
     return workflow
 
@@ -1394,3 +1223,26 @@ def _no_native(value):
         return int(value)
     except Exception:
         return None
+
+def _select_tpms():
+    from ...patch.utils import get_template_specs
+    template, specs = template
+    template = template.split(':')[0]  # Drop any cohort modifier if present
+    specs = specs.copy()
+    specs['suffix'] = specs.get('suffix', 'T2w')
+
+    # Sanitize resolution
+    res = specs.pop('res', None) or specs.pop('resolution', None) or 'native'
+    if res != 'native':
+        specs['resolution'] = res
+        return get_template_specs(template, template_spec=specs)[0]
+
+    # Map nonstandard resolutions to existing resolutions
+    if template == 'Fischer344':
+        default_res = None
+    else:
+        default_res = 2
+
+    out = get_template_specs(template, template_spec=specs, default_resolution=default_res)
+
+    return out[0]

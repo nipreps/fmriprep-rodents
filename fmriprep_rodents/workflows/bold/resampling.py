@@ -223,8 +223,6 @@ def init_bold_std_trans_wf(
 
     Parameters
     ----------
-    freesurfer : :obj:`bool`
-        Whether to generate FreeSurfer's aseg/aparc segmentations on BOLD space.
     mem_gb : :obj:`float`
         Size of BOLD file in GB
     omp_nthreads : :obj:`int`
@@ -250,12 +248,6 @@ def init_bold_std_trans_wf(
     anat2std_xfm
         List of anatomical-to-standard space transforms generated during
         spatial normalization.
-    bold_aparc
-        FreeSurfer's ``aparc+aseg.mgz`` atlas projected into the T1w reference
-        (only if ``recon-all`` was run).
-    bold_aseg
-        FreeSurfer's ``aseg.mgz`` atlas projected into the T1w reference
-        (only if ``recon-all`` was run).
     bold_mask
         Skull-stripping mask of reference image
     bold_split
@@ -281,12 +273,6 @@ def init_bold_std_trans_wf(
         Reference, contrast-enhanced summary of the BOLD series, resampled to template space
     bold_mask_std
         BOLD series mask in template space
-    bold_aseg_std
-        FreeSurfer's ``aseg.mgz`` atlas, in template space at the BOLD resolution
-        (only if ``recon-all`` was run)
-    bold_aparc_std
-        FreeSurfer's ``aparc+aseg.mgz`` atlas, in template space at the BOLD resolution
-        (only if ``recon-all`` was run)
     template
         Template identifiers synchronized correspondingly to previously
         described outputs.
@@ -324,21 +310,17 @@ preprocessed BOLD runs*: {tpl}.
         )
 
     inputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=[
-                "anat2std_xfm",
-                "bold_aparc",
-                "bold_aseg",
-                "bold_mask",
-                "bold_split",
-                "fieldwarp",
-                "hmc_xforms",
-                "itk_bold_to_t1",
-                "name_source",
-                "templates",
-            ]
-        ),
-        name="inputnode",
+        niu.IdentityInterface(fields=[
+            'anat2std_xfm',
+            'bold_mask',
+            'bold_split',
+            'fieldwarp',
+            'hmc_xforms',
+            'itk_bold_to_t1',
+            'name_source',
+            'templates',
+        ]),
+        name='inputnode'
     )
 
     iterablesource = pe.Node(
@@ -439,17 +421,11 @@ preprocessed BOLD runs*: {tpl}.
     ])
     # fmt:on
 
-    output_names = [
-        "bold_mask_std",
-        "bold_std",
-        "bold_std_ref",
-        "spatial_reference",
-        "template",
-    ] + freesurfer * ["bold_aseg_std", "bold_aparc_std"]
+    output_names = ['bold_mask_std', 'bold_std', 'bold_std_ref',
+                    'spatial_reference', 'template']
 
-    poutputnode = pe.Node(
-        niu.IdentityInterface(fields=output_names), name="poutputnode"
-    )
+    poutputnode = pe.Node(niu.IdentityInterface(fields=output_names),
+                          name='poutputnode')
     # fmt:off
     workflow.connect([
         # Connecting outputnode
@@ -461,28 +437,6 @@ preprocessed BOLD runs*: {tpl}.
         (select_std, poutputnode, [('key', 'template')]),
     ])
     # fmt:on
-
-    if freesurfer:
-        # Sample the parcellation files to functional space
-        aseg_std_tfm = pe.Node(
-            ApplyTransforms(interpolation="MultiLabel"), name="aseg_std_tfm", mem_gb=1
-        )
-        aparc_std_tfm = pe.Node(
-            ApplyTransforms(interpolation="MultiLabel"), name="aparc_std_tfm", mem_gb=1
-        )
-
-        # fmt:off
-        workflow.connect([
-            (inputnode, aseg_std_tfm, [('bold_aseg', 'input_image')]),
-            (inputnode, aparc_std_tfm, [('bold_aparc', 'input_image')]),
-            (select_std, aseg_std_tfm, [('anat2std_xfm', 'transforms')]),
-            (select_std, aparc_std_tfm, [('anat2std_xfm', 'transforms')]),
-            (gen_ref, aseg_std_tfm, [('out_file', 'reference_image')]),
-            (gen_ref, aparc_std_tfm, [('out_file', 'reference_image')]),
-            (aseg_std_tfm, poutputnode, [('output_image', 'bold_aseg_std')]),
-            (aparc_std_tfm, poutputnode, [('output_image', 'bold_aparc_std')]),
-        ])
-        # fmt:on
 
     # Connect parametric outputs to a Join outputnode
     outputnode = pe.JoinNode(
