@@ -147,9 +147,7 @@ methodology of *fMRIPrep*.
         EstimateReferenceImage(multiecho=multiecho), name="gen_ref", mem_gb=1
     )  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
 
-    brain_extraction_wf = init_rodent_brain_extraction_wf(
-        ants_affine_init=False,
-    )
+    brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False,)
 
     calc_dummy_scans = pe.Node(
         niu.Function(function=_pass_dummy_scans, output_names=["skip_vols_num"]),
@@ -157,10 +155,12 @@ methodology of *fMRIPrep*.
         run_without_submitting=True,
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
-    bold_1st = pe.Node(niu.Select(index=[0]),
-                       name="bold_1st", run_without_submitting=True)
-    validate_1st = pe.Node(niu.Select(index=[0]),
-                           name="validate_1st", run_without_submitting=True)
+    bold_1st = pe.Node(
+        niu.Select(index=[0]), name="bold_1st", run_without_submitting=True
+    )
+    validate_1st = pe.Node(
+        niu.Select(index=[0]), name="validate_1st", run_without_submitting=True
+    )
 
     # fmt: off
     workflow.connect([

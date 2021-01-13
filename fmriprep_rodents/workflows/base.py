@@ -67,7 +67,7 @@ def init_fmriprep_wf():
 
         single_subject_wf.config["execution"]["crashdump_dir"] = str(
             config.execution.output_dir
-            / "fmriprep-rodents"
+            / "fmriprep"
             / "-".join(("sub", subject_id))
             / "log"
             / config.execution.run_uuid
@@ -84,13 +84,13 @@ def init_fmriprep_wf():
         # Dump a copy of the config file into the log directory
         log_dir = (
             config.execution.output_dir
-            / "fmriprep-rodents"
+            / "fmriprep"
             / "sub-{}".format(subject_id)
             / "log"
             / config.execution.run_uuid
         )
         log_dir.mkdir(exist_ok=True, parents=True)
-        config.to_filename(log_dir / "fmriprep-rodents.toml")
+        config.to_filename(log_dir / "fmriprep.toml")
 
     return fmriprep_wf
 
@@ -136,7 +136,6 @@ def init_single_subject_wf(subject_id):
     from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
-    name = "single_subject_%s_wf" % subject_id
     subject_data = collect_data(
         config.execution.layout,
         subject_id,
@@ -145,27 +144,16 @@ def init_single_subject_wf(subject_id):
         bids_filters=config.execution.bids_filters,
     )[0]
 
-    if "flair" in config.workflow.ignore:
-        subject_data["flair"] = []
-    if "t2w" in config.workflow.ignore:
-        subject_data["t2w"] = []
-
     anat_only = config.workflow.anat_only
     # Make sure we always go through these two checks
     if not anat_only and not subject_data["bold"]:
         task_id = config.execution.task_id
         raise RuntimeError(
-            "No BOLD images found for participant {} and task {}. "
-            "All workflows require BOLD images.".format(
-                subject_id, task_id if task_id else "<all>"
-            )
+            f"No BOLD images found for participant <{subject_id}> and "
+            f"task <{task_id or 'all'}>. All workflows require BOLD images."
         )
 
-    # if not subject_data['t1w']:
-    #     raise Exception("No T1w images found for participant {}. "
-    #                     "All workflows require T1w images.".format(subject_id))
-
-    workflow = Workflow(name=name)
+    workflow = Workflow(name=f"single_subject_{subject_id}_wf")
     workflow.__desc__ = """
 Results included in this manuscript come from preprocessing
 performed using *fMRIPrep-rodents* {fmriprep_ver}
@@ -315,7 +303,7 @@ reconall <{config.workflow.run_reconall}>)."""
     # Overwrite ``out_path_base`` of smriprep's DataSinks
     for node in workflow.list_node_names():
         if node.split(".")[-1].startswith("ds_"):
-            workflow.get_node(node).interface.out_path_base = "fmriprep-rodents"
+            workflow.get_node(node).interface.out_path_base = "fmriprep"
 
     if anat_only:
         return workflow

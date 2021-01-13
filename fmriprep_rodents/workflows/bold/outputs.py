@@ -55,13 +55,36 @@ def init_func_derivatives_wf(
     nonstd_spaces = set(spaces.get_nonstandard())
     workflow = Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=[
-        'aroma_noise_ics', 'bold_cifti', 'bold_mask_std', 'bold_mask_t1', 'bold_std',
-        'bold_std_ref', 'bold_t1', 'bold_t1_ref', 'bold_native', 'bold_native_ref',
-        'bold_mask_native', 'cifti_variant', 'cifti_metadata', 'cifti_density',
-        'confounds', 'confounds_metadata', 'melodic_mix', 'nonaggr_denoised_file',
-        'source_file', 'surf_files', 'surf_refs', 'template', 'spatial_reference']),
-        name='inputnode')
+    inputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                "aroma_noise_ics",
+                "bold_cifti",
+                "bold_mask_std",
+                "bold_mask_t1",
+                "bold_std",
+                "bold_std_ref",
+                "bold_t1",
+                "bold_t1_ref",
+                "bold_native",
+                "bold_native_ref",
+                "bold_mask_native",
+                "cifti_variant",
+                "cifti_metadata",
+                "cifti_density",
+                "confounds",
+                "confounds_metadata",
+                "melodic_mix",
+                "nonaggr_denoised_file",
+                "source_file",
+                "surf_files",
+                "surf_refs",
+                "template",
+                "spatial_reference",
+            ]
+        ),
+        name="inputnode",
+    )
 
     raw_sources = pe.Node(niu.Function(function=_bids_relative), name="raw_sources")
     raw_sources.inputs.bids_root = bids_root

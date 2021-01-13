@@ -245,7 +245,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 (FreeSurfer).
 """
 
-<<<<<<< HEAD
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
@@ -256,8 +255,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 "anat_mask",
                 "anat_dseg",
                 "anat_tpms",
-                "anat_aseg",
-                "anat_aparc",
                 "anat2std_xfm",
                 "std2anat_xfm",
                 "template",
@@ -275,13 +272,9 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 "bold_t1",
                 "bold_t1_ref",
                 "bold_mask_t1",
-                "bold_aseg_t1",
-                "bold_aparc_t1",
                 "bold_std",
                 "bold_std_ref",
                 "bold_mask_std",
-                "bold_aseg_std",
-                "bold_aparc_std",
                 "bold_native",
                 "bold_cifti",
                 "cifti_variant",
@@ -297,22 +290,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ),
         name="outputnode",
     )
-=======
-    inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_file', 'subjects_dir', 'subject_id',
-                'anat_preproc', 'anat_mask', 'anat_dseg', 'anat_tpms',
-                'anat2std_xfm', 'std2anat_xfm', 'template',
-                'anat2fsnative_xfm', 'fsnative2anat_xfm']),
-        name='inputnode')
-    inputnode.inputs.bold_file = bold_file
-
-    outputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_t1', 'bold_t1_ref', 'bold_mask_t1', 'bold_std', 'bold_std_ref',
-                'bold_mask_std', 'bold_native', 'bold_cifti', 'cifti_variant', 'cifti_metadata',
-                'cifti_density', 'surfaces', 'confounds', 'aroma_noise_ics', 'melodic_mix',
-                'nonaggr_denoised_file', 'confounds_metadata']),
-        name='outputnode')
->>>>>>> wip
 
     # Generate a brain-masked conversion of the t1w
     t1w_brain = pe.Node(ApplyMask(), name="t1w_brain")
@@ -391,37 +368,21 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     bold_reg_wf = init_bold_reg_wf(
         bold2t1w_dof=config.workflow.bold2t1w_dof,
         bold2t1w_init=config.workflow.bold2t1w_init,
-<<<<<<< HEAD
-        freesurfer=freesurfer,
         mem_gb=mem_gb["resampled"],
         name="bold_reg_wf",
-=======
-        mem_gb=mem_gb['resampled'],
-        name='bold_reg_wf',
->>>>>>> wip
         omp_nthreads=omp_nthreads,
         use_compression=False,
     )
 
     # apply BOLD registration to T1w
-<<<<<<< HEAD
     bold_t1_trans_wf = init_bold_t1_trans_wf(
         name="bold_t1_trans_wf",
-        freesurfer=freesurfer,
         use_fieldwarp=bool(fmaps),
         multiecho=multiecho,
         mem_gb=mem_gb["resampled"],
         omp_nthreads=omp_nthreads,
         use_compression=False,
     )
-=======
-    bold_t1_trans_wf = init_bold_t1_trans_wf(name='bold_t1_trans_wf',
-                                             use_fieldwarp=bool(fmaps),
-                                             multiecho=multiecho,
-                                             mem_gb=mem_gb['resampled'],
-                                             omp_nthreads=omp_nthreads,
-                                             use_compression=False)
->>>>>>> wip
 
     # get confounds
     bold_confounds_wf = init_bold_confs_wf(
@@ -763,22 +724,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ])
         # fmt:on
 
-<<<<<<< HEAD
-        if freesurfer:
-            # fmt:off
-            workflow.connect([
-                (bold_std_trans_wf, func_derivatives_wf, [
-                    ('outputnode.bold_aseg_std', 'inputnode.bold_aseg_std'),
-                    ('outputnode.bold_aparc_std', 'inputnode.bold_aparc_std'),
-                ]),
-                (bold_std_trans_wf, outputnode, [
-                    ('outputnode.bold_aseg_std', 'bold_aseg_std'),
-                    ('outputnode.bold_aparc_std', 'bold_aparc_std')]),
-            ])
-            # fmt:on
-
-=======
->>>>>>> wip
         if not multiecho:
             workflow.connect(
                 [
@@ -952,7 +897,9 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             # Xform to 'Fischer344' is always computed.
             carpetplot_select_std = pe.Node(
                 KeySelect(fields=["std2anat_xfm"], key="Fischer344"),
-                name="carpetplot_select_std", run_without_submitting=True)
+                name="carpetplot_select_std",
+                run_without_submitting=True,
+            )
 
             # fmt:off
             workflow.connect([
