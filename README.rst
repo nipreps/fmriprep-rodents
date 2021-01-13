@@ -1,43 +1,15 @@
-*fMRIPrep*: A Robust Preprocessing Pipeline for fMRI Data
+*fMRIPrep/rodents*: Analysis-grade BOLD fMRI data of rats
 =========================================================
-
-This pipeline is developed by the `Poldrack lab at Stanford University
-<https://poldracklab.stanford.edu/>`_ for use at the `Center for Reproducible
-Neuroscience (CRN) <http://reproducibility.stanford.edu/>`_, as well as for
-open-source software distribution.
-
-.. image:: https://img.shields.io/badge/docker-poldracklab/fmriprep-brightgreen.svg?logo=docker&style=flat
-  :target: https://hub.docker.com/r/poldracklab/fmriprep/tags/
-  :alt: Docker image available!
-
-.. image:: https://codeocean.com/codeocean-assets/badge/open-in-code-ocean.svg
-  :target: https://doi.org/10.24433/CO.ed5ddfef-76a3-4996-b298-e3200f69141b
-  :alt: Available in CodeOcean!
-
-.. image:: https://circleci.com/gh/poldracklab/fmriprep/tree/master.svg?style=shield
-  :target: https://circleci.com/gh/poldracklab/fmriprep/tree/master
-
-.. image:: https://readthedocs.org/projects/fmriprep/badge/?version=latest
-  :target: http://fmriprep.readthedocs.io/en/latest/?badge=latest
-  :alt: Documentation Status
-
-.. image:: https://img.shields.io/pypi/v/fmriprep.svg
-  :target: https://pypi.python.org/pypi/fmriprep/
-  :alt: Latest Version
-
-.. image:: https://img.shields.io/badge/doi-10.1038%2Fs41592--018--0235--4-blue.svg
-  :target: https://doi.org/10.1038/s41592-018-0235-4
-  :alt: Published in Nature Methods
-
-.. image:: https://img.shields.io/badge/RRID-SCR__016216-blue.svg
-  :target: https://doi.org/10.1038/s41592-018-0235-4
-  :alt: RRID:SCR_016216
+This tool adapts *fMRIPrep* to the use-case of rodent preclinical imaging -- 
+because MRI is some times done on species other than the *homo sapiens*.
 
 About
 -----
+Development was initiated by (soon-to-be) Dr. E. MacNicol in a research visit to the 
+`Poldrack lab at Stanford University <https://poldracklab.stanford.edu/>`__.
+Currently, it is maintained by the NiPreps community.
 
 .. image:: https://github.com/oesteban/fmriprep/raw/38a63e9504ab67812b63813c5fe9af882109408e/docs/_static/fmriprep-workflow-all.png
-
 
 *fMRIPrep* is a functional magnetic resonance imaging (fMRI) data
 preprocessing pipeline that is designed to provide an easily accessible,
@@ -79,10 +51,8 @@ This tool allows you to easily do the following:
 More information and documentation can be found at
 https://fmriprep.readthedocs.io/
 
-
 Principles
 ----------
-
 *fMRIPrep* is built around three principles:
 
 1. **Robustness** - The pipeline adapts the preprocessing steps depending on
@@ -99,7 +69,6 @@ Principles
    This, combined with the documentation, can help researchers to understand
    the process and decide which subjects should be kept for the group level
    analysis.
-
 
 Limitations and reasons not to use *fMRIPrep*
 ---------------------------------------------
@@ -123,10 +92,8 @@ Limitations and reasons not to use *fMRIPrep*
 `open review <https://pubpeer.com/publications/6B3E024EAEBF2C80085FDF644C2085>`__
 of our `pre-print <https://doi.org/10.1101/306951>`__).
 
-
 Acknowledgements
 ----------------
-
 Please acknowledge this work using the citation boilerplate that *fMRIPrep* includes
 in the visual report generated for every subject processed.
 For an illustration of how the citation boilerplate generally reads, please
