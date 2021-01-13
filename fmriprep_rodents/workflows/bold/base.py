@@ -69,14 +69,14 @@ def init_func_preproc_wf(bold_file):
         Bias-corrected structural template image
     t1w_mask
         Mask of the skull-stripped template image
-    t1w_dseg
+    anat_dseg
         Segmentation of preprocessed structural image, including
         gray-matter (GM), white-matter (WM) and cerebrospinal fluid (CSF)
     t1w_asec
         Segmentation of structural image, done with FreeSurfer.
     t1w_aparc
         Parcellation of structural image, done with FreeSurfer.
-    t1w_tpms
+    anat_tpms
         List of tissue probability maps in T1w space
     template
         List of templates to target
@@ -245,6 +245,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 (FreeSurfer).
 """
 
+<<<<<<< HEAD
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
@@ -296,6 +297,22 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ),
         name="outputnode",
     )
+=======
+    inputnode = pe.Node(niu.IdentityInterface(
+        fields=['bold_file', 'subjects_dir', 'subject_id',
+                'anat_preproc', 'anat_mask', 'anat_dseg', 'anat_tpms',
+                'anat2std_xfm', 'std2anat_xfm', 'template',
+                'anat2fsnative_xfm', 'fsnative2anat_xfm']),
+        name='inputnode')
+    inputnode.inputs.bold_file = bold_file
+
+    outputnode = pe.Node(niu.IdentityInterface(
+        fields=['bold_t1', 'bold_t1_ref', 'bold_mask_t1', 'bold_std', 'bold_std_ref',
+                'bold_mask_std', 'bold_native', 'bold_cifti', 'cifti_variant', 'cifti_metadata',
+                'cifti_density', 'surfaces', 'confounds', 'aroma_noise_ics', 'melodic_mix',
+                'nonaggr_denoised_file', 'confounds_metadata']),
+        name='outputnode')
+>>>>>>> wip
 
     # Generate a brain-masked conversion of the t1w
     t1w_brain = pe.Node(ApplyMask(), name="t1w_brain")
@@ -335,8 +352,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         (outputnode, func_derivatives_wf, [
             ('bold_t1', 'inputnode.bold_t1'),
             ('bold_t1_ref', 'inputnode.bold_t1_ref'),
-            ('bold_aseg_t1', 'inputnode.bold_aseg_t1'),
-            ('bold_aparc_t1', 'inputnode.bold_aparc_t1'),
             ('bold_mask_t1', 'inputnode.bold_mask_t1'),
             ('bold_native', 'inputnode.bold_native'),
             ('confounds', 'inputnode.confounds'),
@@ -376,16 +391,20 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     bold_reg_wf = init_bold_reg_wf(
         bold2t1w_dof=config.workflow.bold2t1w_dof,
         bold2t1w_init=config.workflow.bold2t1w_init,
+<<<<<<< HEAD
         freesurfer=freesurfer,
         mem_gb=mem_gb["resampled"],
         name="bold_reg_wf",
+=======
+        mem_gb=mem_gb['resampled'],
+        name='bold_reg_wf',
+>>>>>>> wip
         omp_nthreads=omp_nthreads,
-        sloppy=config.execution.debug,
-        use_bbr=config.workflow.use_bbr,
         use_compression=False,
     )
 
     # apply BOLD registration to T1w
+<<<<<<< HEAD
     bold_t1_trans_wf = init_bold_t1_trans_wf(
         name="bold_t1_trans_wf",
         freesurfer=freesurfer,
@@ -395,6 +414,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         omp_nthreads=omp_nthreads,
         use_compression=False,
     )
+=======
+    bold_t1_trans_wf = init_bold_t1_trans_wf(name='bold_t1_trans_wf',
+                                             use_fieldwarp=bool(fmaps),
+                                             multiecho=multiecho,
+                                             mem_gb=mem_gb['resampled'],
+                                             omp_nthreads=omp_nthreads,
+                                             use_compression=False)
+>>>>>>> wip
 
     # get confounds
     bold_confounds_wf = init_bold_confs_wf(
@@ -508,19 +535,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         (bold_reference_wf, summary, [
             ('outputnode.algo_dummy_scans', 'algo_dummy_scans')]),
         # EPI-T1 registration workflow
-        (inputnode, bold_reg_wf, [
-            ('anat_dseg', 'inputnode.t1w_dseg'),
-            # Undefined if --fs-no-reconall, but this is safe
-            ('subjects_dir', 'inputnode.subjects_dir'),
-            ('subject_id', 'inputnode.subject_id'),
-            ('fsnative2anat_xfm', 'inputnode.fsnative2t1w_xfm')]),
         (t1w_brain, bold_reg_wf, [
             ('out_file', 'inputnode.t1w_brain')]),
         (inputnode, bold_t1_trans_wf, [
             ('bold_file', 'inputnode.name_source'),
-            ('anat_mask', 'inputnode.t1w_mask'),
-            ('anat_aseg', 'inputnode.t1w_aseg'),
-            ('anat_aparc', 'inputnode.t1w_aparc')]),
+            ('anat_mask', 'inputnode.t1w_mask')]),
         (t1w_brain, bold_t1_trans_wf, [
             ('out_file', 'inputnode.t1w_brain')]),
         # unused if multiecho, but this is safe
@@ -528,10 +547,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         (bold_reg_wf, bold_t1_trans_wf, [
             ('outputnode.itk_bold_to_t1', 'inputnode.itk_bold_to_t1')]),
         (bold_t1_trans_wf, outputnode, [('outputnode.bold_t1', 'bold_t1'),
-                                        ('outputnode.bold_t1_ref', 'bold_t1_ref'),
-                                        ('outputnode.bold_aseg_t1', 'bold_aseg_t1'),
-                                        ('outputnode.bold_aparc_t1', 'bold_aparc_t1')]),
-        (bold_reg_wf, summary, [('outputnode.fallback', 'fallback')]),
+                                        ('outputnode.bold_t1_ref', 'bold_t1_ref')]),
         # SDC (or pass-through workflow)
         (t1w_brain, bold_sdc_wf, [
             ('out_file', 'inputnode.t1w_brain')]),
@@ -550,7 +566,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('outputnode.epi_brain', 'inputnode.ref_bold_brain')]),
         (bold_sdc_wf, summary, [('outputnode.method', 'distortion_correction')]),
         # Connect bold_confounds_wf
-        (inputnode, bold_confounds_wf, [('anat_tpms', 'inputnode.t1w_tpms'),
+        (inputnode, bold_confounds_wf, [('anat_tpms', 'inputnode.anat_tpms'),
                                         ('anat_mask', 'inputnode.t1w_mask')]),
         (bold_hmc_wf, bold_confounds_wf, [
             ('outputnode.movpar_file', 'inputnode.movpar_file'),
@@ -732,9 +748,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (inputnode, bold_std_trans_wf, [
                 ('template', 'inputnode.templates'),
                 ('anat2std_xfm', 'inputnode.anat2std_xfm'),
-                ('bold_file', 'inputnode.name_source'),
-                ('anat_aseg', 'inputnode.bold_aseg'),
-                ('anat_aparc', 'inputnode.bold_aparc')]),
+                ('bold_file', 'inputnode.name_source')]),
             (bold_hmc_wf, bold_std_trans_wf, [
                 ('outputnode.xforms', 'inputnode.hmc_xforms')]),
             (bold_reg_wf, bold_std_trans_wf, [
@@ -749,6 +763,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ])
         # fmt:on
 
+<<<<<<< HEAD
         if freesurfer:
             # fmt:off
             workflow.connect([
@@ -762,6 +777,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ])
             # fmt:on
 
+=======
+>>>>>>> wip
         if not multiecho:
             workflow.connect(
                 [
