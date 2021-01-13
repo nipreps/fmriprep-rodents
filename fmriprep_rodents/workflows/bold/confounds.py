@@ -211,7 +211,7 @@ were annotated as motion outliers.
     acc_tpm = pe.Node(
         AddTPMs(indices=[1, 2]), name="acc_tpm"  # BIDS convention (WM=1, CSF=2)
     )  # acc stands for aCompCor
-    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=30), name="csf_roi")
+    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=3), name="csf_roi")
     wm_roi = pe.Node(
         TPM2ROI(
             erode_prop=0.6, mask_erode_prop=0.6 ** 3

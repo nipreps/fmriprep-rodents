@@ -432,11 +432,21 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     lut_anat_dseg = pe.Node(
         niu.Function(function=_apply_bids_lut), name="lut_anat_dseg"
     )
-    lut_anat_dseg.inputs.lut = (0, 3, 1, 2)  # Maps: 0 -> 0, 3 -> 1, 1 -> 2, 2 -> 3.
+    lut_anat_dseg.inputs.lut = (0, 3, 2, 1)  # Maps: 0 -> 0, 3 -> 1, 2 -> 2, 1 -> 3.
     fast2bids = pe.Node(
         niu.Function(function=_probseg_fast2bids),
         name="fast2bids",
         run_without_submitting=True,
+    )
+
+    # 5. Move native dseg & tpms back to standard space
+    xfm_dseg = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="xfm_dseg")
+    xfm_tpms = pe.MapNode(
+        ApplyTransforms(
+            dimension=3, default_value=0, float=True, interpolation="Gaussian"
+        ),
+        iterfield=["input_image"],
+        name="xfm_tpms",
     )
 
     # fmt:off
@@ -468,6 +478,18 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
         (outputnode, anat_derivatives_wf, [
             ('t2w_tpms', 'inputnode.anat_tpms'),
             ('t2w_dseg', 'inputnode.anat_dseg')
+        ]),
+        (anat_norm_wf, xfm_dseg, [('poutputnode.standardized', 'reference_image')]),
+        (lut_anat_dseg, xfm_dseg, [('out', 'input_image')]),
+        (anat_norm_wf, xfm_dseg, [('poutputnode.anat2std_xfm', 'transforms')]),
+        (anat_norm_wf, xfm_tpms, [('poutputnode.standardized', 'reference_image')]),
+        (fast2bids, xfm_tpms, [('out', 'input_image')]),
+        (anat_norm_wf, xfm_tpms, [('poutputnode.anat2std_xfm', 'transforms')]),
+        (xfm_dseg, outputnode, [('output_image', 'std_dseg')]),
+        (xfm_tpms, outputnode, [('output_image', 'std_tpms')]),
+        (outputnode, anat_derivatives_wf, [
+            ('std_dseg', 'inputnode.std_dseg'),
+            ('std_tpms', 'inputnode.std_tpms')
         ]),
     ])
     # fmt:on
@@ -606,8 +628,8 @@ The following template{tpls} selected for spatial normalization:
                 "lesion_mask",
                 "moving_image",
                 "moving_mask",
-                "moving_segmentation",
-                "moving_tpms",
+                # "moving_segmentation",
+                # "moving_tpms",
                 "orig_t1w",
                 "template",
             ]
@@ -620,9 +642,9 @@ The following template{tpls} selected for spatial normalization:
         "anat2std_xfm",
         "standardized",
         "std2anat_xfm",
-        "std_dseg",
+        # "std_dseg",
         "std_mask",
-        "std_tpms",
+        # "std_tpms",
         "template",
         "template_spec",
     ]
@@ -659,15 +681,6 @@ The following template{tpls} selected for spatial normalization:
     )
 
     std_mask = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="std_mask")
-    std_dseg = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="std_dseg")
-
-    std_tpms = pe.MapNode(
-        ApplyTransforms(
-            dimension=3, default_value=0, float=True, interpolation="Gaussian"
-        ),
-        iterfield=["input_image"],
-        name="std_tpms",
-    )
 
     # fmt:off
     workflow.connect([
@@ -685,23 +698,15 @@ The following template{tpls} selected for spatial normalization:
                                     (('spec', _no_atlas), 'template_spec')]),
         (tf_select, tpl_moving, [('t2w_file', 'reference_image')]),
         (tf_select, std_mask, [('t2w_file', 'reference_image')]),
-        # (tf_select, std_dseg, [('t2w_file', 'reference_image')]),
-        # (tf_select, std_tpms, [('t2w_file', 'reference_image')]),
         (trunc_mov, registration, [
             ('output_image', 'moving_image')]),
         (registration, tpl_moving, [('composite_transform', 'transforms')]),
         (registration, std_mask, [('composite_transform', 'transforms')]),
-        # (inputnode, std_dseg, [('moving_segmentation', 'input_image')]),
-        # (registration, std_dseg, [('composite_transform', 'transforms')]),
-        # (inputnode, std_tpms, [('moving_tpms', 'input_image')]),
-        # (registration, std_tpms, [('composite_transform', 'transforms')]),
         (registration, poutputnode, [
             ('composite_transform', 'anat2std_xfm'),
             ('inverse_composite_transform', 'std2anat_xfm')]),
         (tpl_moving, poutputnode, [('output_image', 'standardized')]),
         (std_mask, poutputnode, [('output_image', 'std_mask')]),
-        # (std_dseg, poutputnode, [('output_image', 'std_dseg')]),
-        # (std_tpms, poutputnode, [('output_image', 'std_tpms')]),
         (split_desc, poutputnode, [('spec', 'template_spec')]),
     ])
     # fmt:on
@@ -950,6 +955,8 @@ def init_anat_derivatives_wf(
                 "t1w_mask",
                 "anat_dseg",
                 "anat_tpms",
+                "std_dseg",
+                "std_tpms",
                 "anat2std_xfm",
                 "std2anat_xfm",
                 "t1w2fsnative_xfm",
@@ -1223,7 +1230,7 @@ def _pop(inlist):
 
 def _probseg_fast2bids(inlist):
     """Reorder a list of probseg maps from FAST (CSF, WM, GM) to BIDS (GM, WM, CSF)."""
-    return (inlist[1], inlist[2], inlist[0])
+    return (inlist[2], inlist[1], inlist[0])
 
 
 def _empty_report(in_file=None):
