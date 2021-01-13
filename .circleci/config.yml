@@ -69,7 +69,6 @@ jobs:
               echo "the command ``git fetch --tags --verbose`` and push"
               echo "them to your fork with ``git push origin --tags``"
             fi
-            sed -i -E "s/(__version__ = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" wrapper/fmriprep_docker.py
             sed -i -E "s/(var version = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" docs/citing.rst
             sed -i "s/title = {FMRIPrep}/title = {FMRIPrep ${CIRCLE_TAG:-$THISVERSION}}/" fmriprep_rodents/data/boilerplate.bib
             # Build docker image
@@ -104,28 +103,53 @@ jobs:
             - /tmp/docker
 
   get_data:
-    machine:
-      # Ubuntu 14.04 with Docker 17.10.0-ce
-      image: circleci/classic:201711-01
-    working_directory: /home/circleci/data
+    docker:
+      - image: continuumio/miniconda3:4.9.2-alpine
+    working_directory: /tmp/data
+    environment:
+      - TEMPLATEFLOW_HOME: /tmp/templateflow
     steps:
       - restore_cache:
           keys:
-            - data-v0-{{ .Branch }}-{{ .Revision }}
-            - data-v0-{{ .Branch }}
-            - data-v0-
+            - env-v0-{{ .Branch }}-
+            - env-v0-master-
+            - env-v0-
       - run:
-           name: Get single echo rodent data
-           command: |
-             mkdir -p /tmp/data
-             rm -rf /tmp/data/rodent-se/
-             wget --retry-connrefused --waitretry=5 --read-timeout=20 --timeout=15 -t 0 -q \
-               -O rodent-se.tar.gz "https://stanford.box.com/shared/static/ei6qtu81y1zx9fxii11svvm73n3884fl.gz"
-             tar xvzf rodent-se.tar.gz -C /tmp/data/
+          name: Setup git-annex & DataLad
+          command: |
+            conda install -y -c anaconda -c conda-forge git-annex datalad
+            python -m pip install --no-cache-dir -U datalad-osf
+            git config --global user.name 'NiPreps Bot'
+            git config --global user.email 'nipreps@gmail.com'
+      - run:
+          name: Setup TemplateFlow
+          command: |
+            python -m pip install --no-cache-dir -U templateflow
+            python -c "from templateflow import api as tfapi; \
+                       tfapi.get('Fischer344');"
       - save_cache:
-         key: data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
-         paths:
-            - /tmp/data
+          key: env-v0-{{ .Branch }}-{{ .BuildNum }}
+          paths:
+            - /tmp/templateflow
+            - /opt/conda
+
+      - restore_cache:
+          keys:
+            - data-se-v0-{{ .Branch }}-{{ .Revision }}-
+            - data-se-v0-{{ .Branch }}-
+            - data-se-v0-master-
+            - data-se-v0-
+      - run:
+          name: Install Rodent BOLD/SE dataset
+          command: |
+            datalad install -r https://github.com/nipreps-data/nirodents-bold-se.git
+            datalad update -r --merge -d nirodents-bold-se/
+            datalad get -J 2 -r -d nirodents-bold-se nirodents-bold-se/*
+      - save_cache:
+          key: data-se-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+          paths:
+            - /tmp/data/nirodents-bold-se
+
       - run:
           name: Store FreeSurfer license file
           command: |
@@ -135,23 +159,24 @@ jobs:
       - run:
           name: Create Nipype config files
           command: |
-            mkdir -p /tmp/rodent-se
-            printf "[execution]\nstop_on_first_crash = true\n" > /tmp/rodent-se/nipype.cfg
-            echo "poll_sleep_duration = 0.01" >> /tmp/rodent-se/nipype.cfg
-            echo "hash_method = content" >> /tmp/rodent-se/nipype.cfg
+            mkdir -p /tmp/config
+            printf "[execution]\nstop_on_first_crash = true\n" > /tmp/config/nipype.cfg
+            echo "poll_sleep_duration = 0.01" >> /tmp/config/nipype.cfg
+            echo "hash_method = content" >> /tmp/config/nipype.cfg
       - persist_to_workspace:
           root: /tmp
           paths:
+            - templateflow
             - fslicense
-            - rodent-se/nipype.cfg
+            - config/nipype.cfg
 
-  test_rodent_anat:
+  smoke_test:
     machine:
       image: circleci/classic:201711-01
     working_directory: /tmp/rodent-se
     environment:
       - FS_LICENSE: /tmp/fslicense/license.txt
-      - DATASET: rodent-se
+      - DATASET: nirodents-bold-se
     steps:
       - checkout:
           path: /home/circleci/src/fmriprep-rodents
@@ -177,12 +202,6 @@ jobs:
             - build-v1-
           paths:
             - /tmp/docker
-      - restore_cache:
-          keys:
-            - data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
-            - data-v0-{{ .Branch }}-{{ .Revision }}-
-            - data-v0-{{ .Branch }}-
-            - data-v0-
       - run:
           name: Set-up a Docker registry
           command: |
@@ -193,439 +212,345 @@ jobs:
           command: |
             docker pull localhost:5000/fmriprep-rodents
             docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
-      - run:
-          name: Setting up test
-          command: |
-            export PY3=$(pyenv versions | grep '3\.' |
-                         sed -e 's/.* 3\./3./' -e 's/ .*//')
-            pyenv local $PY3
-            mkdir -p /tmp/${DATASET}-anat/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives
-            sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives
-            pip install --upgrade pip setuptools
-            pip install --upgrade /tmp/src/fmriprep-rodents/wrapper/
+
+      - restore_cache:
+          keys:
+            - data-se-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+            - data-se-v0-{{ .Branch }}-{{ .Revision }}-
+            - data-se-v0-{{ .Branch }}-
+            - data-se-v0-
+      - restore_cache:
+          keys:
+            - nirodents-bold-se-anat-v00-{{ .Branch }}-{{ .Revision }}
+            - nirodents-bold-se-anat-v00-{{ .Branch }}
+            - nirodents-bold-se-anat-v00-master
+            - nirodents-bold-se-anat-v00-
       - run:
           name: Run anatomical workflow on rodents
           no_output_timeout: 2h
           command: |
-            mkdir -p /tmp/${DATASET}-anat/work /tmp/${DATASET}-anat/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}-anat/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}-anat/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}-anat/work
-            fmriprep-docker -i poldracklab/fmriprep-rodents:latest \
-                    -e FMRIPREP_DEV 1 -u $(id -u) \
-                    --config $PWD/nipype.cfg -w /tmp/${DATASET}-anat/work \
-                    /tmp/data/${DATASET} /tmp/${DATASET}-anat/derivatives participant \
-                    --skull-strip-template Fischer344 \
-                    --output-spaces \
-                    --sloppy --write-graph --mem_mb 4096 \
-                    --nthreads 2 --anat-only -vv --skip-bids-validation
+            mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/anatomical
+            docker run -e FS_LICENSE=$FS_LICENSE -e FMRIPREP_DEV=1 --rm \
+                -v /tmp/data/${DATASET}:/data \
+                -v /tmp/${DATASET}/anatomical:/out \
+                -v /tmp/fslicense/license.txt:/tmp/fslicense/license.txt:ro \
+                -v /tmp/config/nipype.cfg:/home/fmriprep/.nipype/nipype.cfg \
+                -v /tmp/templateflow:/home/fmriprep/.cache/templateflow \
+                -v /tmp/${DATASET}/work:/work \
+                --user $(id -u):$(id -g) \
+                poldracklab/fmriprep-rodents:latest /data /out participant -vv \
+                -w /work --sloppy --anat-only \
+                --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
       - store_artifacts:
-          path: /tmp/rodent-se-anat/derivatives
+          path: /tmp/nirodents-bold-se/anatomical
+      - save_cache:
+         key: nirodents-bold-se-anat-v00-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+         paths:
+            - /tmp/nirodents-bold-se/work
 
-  test_rodent:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/rodent-se
-    environment:
-      - FS_LICENSE: /tmp/fslicense/license.txt
-      - DATASET: rodent-se
-    steps:
-      - checkout:
-          path: /home/circleci/src/fmriprep-rodents
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep-rodents
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?tests\]' )" != "" ]]; then
-              echo "Skipping pytest job"
-              circleci step halt
-            fi
-
-      - attach_workspace:
-          at: /tmp
-      - restore_cache:
-          keys:
-            - build-v1-{{ .Branch }}-{{ epoch }}
-            - build-v1-{{ .Branch }}-
-            - build-v1-
-          paths:
-            - /tmp/docker
-      - restore_cache:
-          keys:
-            - data-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
-            - data-v0-{{ .Branch }}-{{ .Revision }}-
-            - data-v0-{{ .Branch }}-
-            - data-v0-
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep-rodents
-            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
-      - run:
-          name: Setting up test
-          command: |
-            export PY3=$(pyenv versions | grep '3\.' |
-                         sed -e 's/.* 3\./3./' -e 's/ .*//')
-            pyenv local $PY3
-            mkdir -p /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            pip install --upgrade pip setuptools
-            pip install --upgrade /tmp/src/fmriprep-rodents/wrapper/
       - run:
           name: Run full BOLD workflow on rodents
           no_output_timeout: 2h
           command: |
-            mkdir -p /tmp/${DATASET}/work /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/derivatives
-            sudo setfacl -d -m group:$(id -gn):rwx /tmp/${DATASET}/work && \
-                sudo setfacl -m group:$(id -gn):rwx /tmp/${DATASET}/work
-            fmriprep-docker -i poldracklab/fmriprep-rodents:latest \
-                    -e FMRIPREP_DEV 1 -u $(id -u) \
-                    --config $PWD/nipype.cfg -w /tmp/${DATASET}/work \
-                    /tmp/data/${DATASET} /tmp/${DATASET}/derivatives participant \
-                    --skull-strip-template Fischer344 \
-                    --sloppy --write-graph --mem_mb 4096 \
-                    --nthreads 2 -vv --skip-bids-validation --fs-no-reconall
+            docker run -e FS_LICENSE=$FS_LICENSE -e FMRIPREP_DEV=1 --rm \
+                -v /tmp/data/${DATASET}:/data \
+                -v /tmp/${DATASET}/derivatives:/out \
+                -v /tmp/fslicense/license.txt:/tmp/fslicense/license.txt:ro \
+                -v /tmp/config/nipype.cfg:/home/fmriprep/.nipype/nipype.cfg \
+                -v /tmp/templateflow:/home/fmriprep/.cache/templateflow \
+                -v /tmp/${DATASET}/work:/work \
+                --user $(id -u):$(id -g) \
+                poldracklab/fmriprep-rodents:latest /data /out participant -vv \
+                -w /work --sloppy --notrack --skip-bids-validation \
+                --omp-nthreads 2 --nprocs 2
       - store_artifacts:
-          path: /tmp/rodent-se/derivatives
-
-
-  test_pytest:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep-rodents
-    steps:
-      - checkout:
-          path: /home/circleci/src/fmriprep-rodents
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep-rodents
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?tests\]' )" != "" ]]; then
-              echo "Skipping pytest job"
-              circleci step halt
-            fi
-
-      - attach_workspace:
-          at: /tmp
-      - restore_cache:
-          keys:
-            - build-v1-{{ .Branch }}-{{ epoch }}
-            - build-v1-{{ .Branch }}-
-            - build-v1-
-          paths:
-            - /tmp/docker
-      - restore_cache:
-          keys:
-            - data-v0-{{ .Branch }}-{{ .Revision }}
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep-rodents
-            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
-      - run:
-          name: Run fMRIPrep tests
-          no_output_timeout: 2h
-          command: |
-            docker run -ti --rm=false \
-              -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
-              --entrypoint="pytest" poldracklab/fmriprep-rodents:latest \
-              /src/fmriprep/fmriprep_rodents -svx --doctest-modules
+          path: /tmp/nirodents-bold-se/derivatives
 
       - run:
-          name: Test fmriprep-wrapper (Python 2)
+          name: Clean working directory
+          when: on_success
           command: |
-            export PY2=$(pyenv versions | grep '2\.' |
-                         sed -e 's/.* 2\./2./' -e 's/ .*//')
-            pyenv local $PY2
-            echo -n "Python version: "
-            python --version
-            pip install --upgrade "pip<21" "setuptools<45"
-            pip install --upgrade wrapper/
-            which fmriprep-docker
-            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --help
-            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --version
+            sudo rm -rf /tmp/nirodents-bold-se/work
       - run:
-          name: Test fmriprep-wrapper (Python 3)
+          name: Clean working directory
+          when: on_fail
           command: |
-            export PY3=$(pyenv versions | grep '3\.' |
-                         sed -e 's/.* 3\./3./' -e 's/ .*//')
-            pyenv local $PY3
-            echo -n "Python version: "
-            python --version
-            pip install --upgrade pip setuptools
-            pip install --upgrade wrapper/
-            which fmriprep-docker
-            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --help
-            fmriprep-docker -i poldracklab/fmriprep-rodents:latest --version
+            find /tmp/nirodents-bold-se/work \( -name "*.nii.gz" -or -name "*.nii" -or -name "*.gii" -or -name "*.h5" \) \
+                -exec sh -c 'rm -f {}; touch {}' \;
       - store_artifacts:
-          path: /tmp/data/reports
+          path: /tmp/nirodents-bold-se/work
 
-  build_docs:
-    docker:
-      - image: python:3.7.4
-    working_directory: /tmp/src/fmriprep-rodents
-    environment:
-      - FSLOUTPUTTYPE: 'NIFTI'
-    steps:
-      - checkout
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?docs\]' )" != "" ]]; then
-              echo "Skipping doc building job"
-              circleci step halt
-            fi
-      - run:
-          name: Check Python version and upgrade pip
-          command: |
-            python --version
-            python -m pip install -U pip
-      - run:
-          name: Install graphviz
-          command: |
-              apt-get update
-              apt-get install -y graphviz
-      - run:
-          name: Install Requirements (may contain pinned versions)
-          command: python -m pip install -r docs/requirements.txt
-      - run:
-          name: Install fMRIPrep
-          command: python -m pip install ".[doc]"
-      - run:
-          name: Build documentation
-          command: make SPHINXOPTS="-W" -C docs html
-      - store_artifacts:
-          path: /tmp/src/fmriprep-rodents/docs/_build/html
+  # test_pytest:
+  #   machine:
+  #     image: circleci/classic:201711-01
+  #   working_directory: /tmp/src/fmriprep-rodents
+  #   steps:
+  #     - checkout:
+  #         path: /home/circleci/src/fmriprep-rodents
+  #     - run:
+  #         name: Check whether build should be skipped
+  #         command: |
+  #           cd /home/circleci/src/fmriprep-rodents
+  #           if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
+  #             echo "Only docs build"
+  #             circleci step halt
+  #           fi
+  #           if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?tests\]' )" != "" ]]; then
+  #             echo "Skipping pytest job"
+  #             circleci step halt
+  #           fi
 
-  deploy_docker_patches:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep-rodents
-    steps:
+  #     - attach_workspace:
+  #         at: /tmp
+  #     - restore_cache:
+  #         keys:
+  #           - build-v1-{{ .Branch }}-{{ epoch }}
+  #           - build-v1-{{ .Branch }}-
+  #           - build-v1-
+  #         paths:
+  #           - /tmp/docker
+  #     - restore_cache:
+  #         keys:
+  #           - data-se-v0-{{ .Branch }}-{{ .Revision }}
+  #     - run:
+  #         name: Set-up a Docker registry
+  #         command: |
+  #           docker run -d -p 5000:5000 --restart=always --name=registry \
+  #               -v /tmp/docker:/var/lib/registry registry:2
+  #     - run:
+  #         name: Pull images from local registry
+  #         command: |
+  #           docker pull localhost:5000/fmriprep-rodents
+  #           docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+  #     - run:
+  #         name: Run fMRIPrep tests
+  #         no_output_timeout: 2h
+  #         command: |
+  #           docker run -ti --rm=false \
+  #             -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
+  #             --entrypoint="pytest" poldracklab/fmriprep-rodents:latest \
+  #             /src/fmriprep/fmriprep_rodents -svx --doctest-modules
+  #     - store_artifacts:
+  #         path: /tmp/data/reports
 
-      - run:
-          name: Check whether image should be deployed to Docker Hub
-          command: |
-            if [[ "$CIRCLE_PROJECT_USERNAME" != "poldracklab" ]]; then
-              echo "Nothing to deploy for $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME."
-              circleci step halt
-            fi
-      - checkout:
-          path: /home/circleci/src/fmriprep-rodents
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep-rodents
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-      - restore_cache:
-          keys:
-            - build-v1-{{ .Branch }}-{{ epoch }}
-            - build-v1-{{ .Branch }}-
-            - build-v1-
-          paths:
-            - /tmp/docker
-      - run:
-          name: Setup a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-              -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep-rodents
-            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
-      - run:
-          name: Deploy to Docker Hub
-          no_output_timeout: 40m
-          command: |
-            if [[ -n "$DOCKER_PASS" ]]; then
-              docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
-              docker push poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
-            fi
+  # build_docs:
+  #   docker:
+  #     - image: python:3.7.4
+  #   working_directory: /tmp/src/fmriprep-rodents
+  #   environment:
+  #     - FSLOUTPUTTYPE: 'NIFTI'
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         name: Check whether build should be skipped
+  #         command: |
+  #           if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?docs\]' )" != "" ]]; then
+  #             echo "Skipping doc building job"
+  #             circleci step halt
+  #           fi
+  #     - run:
+  #         name: Check Python version and upgrade pip
+  #         command: |
+  #           python --version
+  #           python -m pip install -U pip
+  #     - run:
+  #         name: Install graphviz
+  #         command: |
+  #             apt-get update
+  #             apt-get install -y graphviz
+  #     - run:
+  #         name: Install Requirements (may contain pinned versions)
+  #         command: python -m pip install -r docs/requirements.txt
+  #     - run:
+  #         name: Install fMRIPrep
+  #         command: python -m pip install ".[doc]"
+  #     - run:
+  #         name: Build documentation
+  #         command: make SPHINXOPTS="-W" -C docs html
+  #     - store_artifacts:
+  #         path: /tmp/src/fmriprep-rodents/docs/_build/html
 
-  deploy_docker:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/src/fmriprep-rodents
-    steps:
-      - checkout:
-          path: /home/circleci/src/fmriprep-rodents
-      - run:
-          name: Check whether build should be skipped
-          command: |
-            cd /home/circleci/src/fmriprep-rodents
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-              echo "Only docs build"
-              circleci step halt
-            fi
-      - restore_cache:
-          keys:
-            - build-v1-{{ .Branch }}-{{ epoch }}
-            - build-v1-{{ .Branch }}-
-            - build-v1-
-          paths:
-            - /tmp/docker
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep-rodents
-            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
-      - run:
-          name: Deploy to Docker Hub
-          no_output_timeout: 40m
-          command: |
-            if [[ -n "$DOCKER_PASS" ]]; then
-              docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:unstable
-              docker push poldracklab/fmriprep-rodents:unstable
-              if [[ -n "$CIRCLE_TAG" ]]; then
-                docker push poldracklab/fmriprep-rodents:latest
-                docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:$CIRCLE_TAG
-                docker push poldracklab/fmriprep-rodents:$CIRCLE_TAG
-              fi
-            fi
+  # deploy_docker_patches:
+  #   machine:
+  #     image: circleci/classic:201711-01
+  #   working_directory: /tmp/src/fmriprep-rodents
+  #   steps:
 
-  test_deploy_pypi:
-    docker:
-      - image: circleci/python:3.7.4
-    working_directory: /tmp/src/fmriprep-rodents
-    steps:
-      - checkout
-      - run:
-          name: Build fMRIPrep
-          command: |
-            pip install --user twine  # For use in checking distributions
-            THISVERSION=$( python get_version.py )
-            THISVERSION=${THISVERSION%.dirty*}
-            THISVERSION=${CIRCLE_TAG:-$THISVERSION}
-            virtualenv --python=python build
-            source build/bin/activate
-            pip install --upgrade "pip>=19.1" numpy
-            echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
-            python setup.py sdist
-            pip wheel --no-deps -w dist/ .
-      - store_artifacts:
-          path: /tmp/src/fmriprep-rodents/dist
-      - run:
-          name: Check sdist distribution
-          command: |
-            THISVERSION=$( python get_version.py )
-            THISVERSION=${THISVERSION%.dirty*}
-            THISVERSION=${CIRCLE_TAG:-$THISVERSION}
-            twine check dist/fmriprep*.tar.gz
-            virtualenv --python=python sdist
-            source sdist/bin/activate
-            pip install --upgrade "pip>=19.1" numpy
-            pip install dist/fmriprep*.tar.gz
-            which fmriprep-rodents | grep sdist\\/bin
-            INSTALLED_VERSION=$(fmriprep-rodents --version)
-            INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
-            INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
-            echo "VERSION: \"$THISVERSION\""
-            echo "INSTALLED: \"$INSTALLED_VERSION\""
-            test "$INSTALLED_VERSION" = "$THISVERSION"
-      - run:
-          name: Check wheel distribution
-          command: |
-            THISVERSION=$( python get_version.py )
-            THISVERSION=${THISVERSION%.dirty*}
-            THISVERSION=${CIRCLE_TAG:-$THISVERSION}
-            twine check dist/fmriprep*.whl
-            virtualenv --python=python wheel
-            source wheel/bin/activate
-            pip install dist/fmriprep*.whl
-            which fmriprep-rodents | grep wheel\\/bin
-            INSTALLED_VERSION=$(fmriprep-rodents --version)
-            INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
-            INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
-            echo "VERSION: \"$THISVERSION\""
-            echo "INSTALLED: \"$INSTALLED_VERSION\""
-            test "$INSTALLED_VERSION" = "$THISVERSION"
-      - run:
-          name: Build fmriprep-docker
-          command: |
-            THISVERSION=$( python get_version.py )
-            THISVERSION=${THISVERSION%.dirty*}
-            cd wrapper
-            virtualenv --python=python build
-            source build/bin/activate
-            pip install --upgrade "pip>=19.1"
-            sed -i -E "s/(__version__ = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" fmriprep_docker.py
-            python setup.py sdist
-            pip wheel --no-deps -w dist/ .
-      - store_artifacts:
-          path: /tmp/src/fmriprep-rodents/wrapper/dist
+  #     - run:
+  #         name: Check whether image should be deployed to Docker Hub
+  #         command: |
+  #           if [[ "$CIRCLE_PROJECT_USERNAME" != "poldracklab" ]]; then
+  #             echo "Nothing to deploy for $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME."
+  #             circleci step halt
+  #           fi
+  #     - checkout:
+  #         path: /home/circleci/src/fmriprep-rodents
+  #     - run:
+  #         name: Check whether build should be skipped
+  #         command: |
+  #           cd /home/circleci/src/fmriprep-rodents
+  #           if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
+  #             echo "Only docs build"
+  #             circleci step halt
+  #           fi
+  #     - restore_cache:
+  #         keys:
+  #           - build-v1-{{ .Branch }}-{{ epoch }}
+  #           - build-v1-{{ .Branch }}-
+  #           - build-v1-
+  #         paths:
+  #           - /tmp/docker
+  #     - run:
+  #         name: Setup a Docker registry
+  #         command: |
+  #           docker run -d -p 5000:5000 --restart=always --name=registry \
+  #             -v /tmp/docker:/var/lib/registry registry:2
+  #     - run:
+  #         name: Pull images from local registry
+  #         command: |
+  #           docker pull localhost:5000/fmriprep-rodents
+  #           docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+  #     - run:
+  #         name: Deploy to Docker Hub
+  #         no_output_timeout: 40m
+  #         command: |
+  #           if [[ -n "$DOCKER_PASS" ]]; then
+  #             docker login -u $DOCKER_USER -p $DOCKER_PASS
+  #             docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
+  #             docker push poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
+  #           fi
 
-  deploy_pypi:
-    docker:
-      - image: circleci/python:3.7.4
-    working_directory: /tmp/src/fmriprep-rodents
-    steps:
-      - checkout
-      - run:
-          name: Build fMRIPrep
-          command: |
-            THISVERSION=$( python get_version.py )
-            virtualenv --python=python build
-            source build/bin/activate
-            pip install --upgrade "pip>=19.1"
-            echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
-            python setup.py sdist
-            pip wheel --no-deps -w dist/ .
-      - run:
-          name: Build fmriprep-docker
-          command: |
-            THISVERSION=$( python get_version.py )
-            cd wrapper
-            virtualenv --python=python build
-            source build/bin/activate
-            pip install --upgrade "pip>=19.1"
-            sed -i -E "s/(__version__ = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" fmriprep_docker.py
-            python setup.py sdist
-            pip wheel --no-deps -w dist/ .
-      - run:
-          name: Upload packages to PyPI
-          command: |
-            pip install --user twine
-            twine upload dist/fmriprep* wrapper/dist/fmriprep*
+  # deploy_docker:
+  #   machine:
+  #     image: circleci/classic:201711-01
+  #   working_directory: /tmp/src/fmriprep-rodents
+  #   steps:
+  #     - checkout:
+  #         path: /home/circleci/src/fmriprep-rodents
+  #     - run:
+  #         name: Check whether build should be skipped
+  #         command: |
+  #           cd /home/circleci/src/fmriprep-rodents
+  #           if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
+  #             echo "Only docs build"
+  #             circleci step halt
+  #           fi
+  #     - restore_cache:
+  #         keys:
+  #           - build-v1-{{ .Branch }}-{{ epoch }}
+  #           - build-v1-{{ .Branch }}-
+  #           - build-v1-
+  #         paths:
+  #           - /tmp/docker
+  #     - run:
+  #         name: Set-up a Docker registry
+  #         command: |
+  #           docker run -d -p 5000:5000 --restart=always --name=registry \
+  #               -v /tmp/docker:/var/lib/registry registry:2
+  #     - run:
+  #         name: Pull images from local registry
+  #         command: |
+  #           docker pull localhost:5000/fmriprep-rodents
+  #           docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+  #     - run:
+  #         name: Deploy to Docker Hub
+  #         no_output_timeout: 40m
+  #         command: |
+  #           if [[ -n "$DOCKER_PASS" ]]; then
+  #             docker login -u $DOCKER_USER -p $DOCKER_PASS
+  #             docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:unstable
+  #             docker push poldracklab/fmriprep-rodents:unstable
+  #             if [[ -n "$CIRCLE_TAG" ]]; then
+  #               docker push poldracklab/fmriprep-rodents:latest
+  #               docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:$CIRCLE_TAG
+  #               docker push poldracklab/fmriprep-rodents:$CIRCLE_TAG
+  #             fi
+  #           fi
 
-  deployable:
-    docker:
-      - image: busybox:latest
-    steps:
-      - run: echo Deploying!
+  # test_deploy_pypi:
+  #   docker:
+  #     - image: circleci/python:3.7.4
+  #   working_directory: /tmp/src/fmriprep-rodents
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         name: Build fMRIPrep
+  #         command: |
+  #           pip install --user twine  # For use in checking distributions
+  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=${THISVERSION%.dirty*}
+  #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
+  #           virtualenv --python=python build
+  #           source build/bin/activate
+  #           pip install --upgrade "pip>=19.1" numpy
+  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
+  #           python setup.py sdist
+  #           pip wheel --no-deps -w dist/ .
+  #     - store_artifacts:
+  #         path: /tmp/src/fmriprep-rodents/dist
+  #     - run:
+  #         name: Check sdist distribution
+  #         command: |
+  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=${THISVERSION%.dirty*}
+  #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
+  #           twine check dist/fmriprep*.tar.gz
+  #           virtualenv --python=python sdist
+  #           source sdist/bin/activate
+  #           pip install --upgrade "pip>=19.1" numpy
+  #           pip install dist/fmriprep*.tar.gz
+  #           which fmriprep-rodents | grep sdist\\/bin
+  #           INSTALLED_VERSION=$(fmriprep-rodents --version)
+  #           INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
+  #           INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
+  #           echo "VERSION: \"$THISVERSION\""
+  #           echo "INSTALLED: \"$INSTALLED_VERSION\""
+  #           test "$INSTALLED_VERSION" = "$THISVERSION"
+  #     - run:
+  #         name: Check wheel distribution
+  #         command: |
+  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=${THISVERSION%.dirty*}
+  #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
+  #           twine check dist/fmriprep*.whl
+  #           virtualenv --python=python wheel
+  #           source wheel/bin/activate
+  #           pip install dist/fmriprep*.whl
+  #           which fmriprep-rodents | grep wheel\\/bin
+  #           INSTALLED_VERSION=$(fmriprep-rodents --version)
+  #           INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
+  #           INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
+  #           echo "VERSION: \"$THISVERSION\""
+  #           echo "INSTALLED: \"$INSTALLED_VERSION\""
+  #           test "$INSTALLED_VERSION" = "$THISVERSION"
+
+  # deploy_pypi:
+  #   docker:
+  #     - image: circleci/python:3.7.4
+  #   working_directory: /tmp/src/fmriprep-rodents
+  #   steps:
+  #     - checkout
+  #     - run:
+  #         name: Build fMRIPrep
+  #         command: |
+  #           THISVERSION=$( python get_version.py )
+  #           virtualenv --python=python build
+  #           source build/bin/activate
+  #           pip install --upgrade "pip>=19.1"
+  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
+  #           python setup.py sdist
+  #           pip wheel --no-deps -w dist/ .
+  #     - run:
+  #         name: Upload packages to PyPI
+  #         command: |
+  #           pip install --user twine
+  #           twine upload dist/fmriprep*
+
+  # deployable:
+  #   docker:
+  #     - image: busybox:latest
+  #   steps:
+  #     - run: echo Deploying!
 
 workflows:
   version: 2
@@ -649,36 +574,7 @@ workflows:
             tags:
               only: /.*/
 
-      - build_docs:
-          filters:
-            branches:
-              ignore:
-                - /tests?\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
-
-      - test_deploy_pypi:
-          filters:
-            branches:
-              ignore:
-                - /docs\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
-
-      - test_pytest:
-          requires:
-            - build
-          filters:
-            branches:
-              ignore:
-                - /docs?\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
-
-      - test_rodent_anat:
+      - smoke_test:
           requires:
             - get_data
             - build
@@ -691,51 +587,68 @@ workflows:
             tags:
               only: /.*/
 
-      - test_rodent:
-          requires:
-            - get_data
-            - build
-          filters:
-            branches:
-              ignore:
-                - /docs?\/.*/
-                - /tests?\/.*/
-                - /docker\/.*/
-            tags:
-              only: /.*/
+      # - test_pytest:
+      #     requires:
+      #       - build
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - /docs?\/.*/
+      #           - /docker\/.*/
+      #       tags:
+      #         only: /.*/
 
-      - deploy_docker_patches:
-          requires:
-            - build
-          filters:
-            branches:
-              only: /docker\/.*/
+      # - build_docs:
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - /tests?\/.*/
+      #           - /docker\/.*/
+      #       tags:
+      #         only: /.*/
 
-      - deployable:
-          requires:
-            - test_deploy_pypi
-            - test_pytest
-            - build_docs
-          filters:
-            branches:
-              only: master
-            tags:
-              only: /.*/
+      # - test_deploy_pypi:
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - /docs\/.*/
+      #           - /docker\/.*/
+      #       tags:
+      #         only: /.*/
 
-      - deploy_docker:
-          requires:
-            - deployable
-          filters:
-            branches:
-              only: master
-            tags:
-              only: /.*/
 
-      - deploy_pypi:
-          requires:
-            - deployable
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /.*/
+      # - deploy_docker_patches:
+      #     requires:
+      #       - build
+      #     filters:
+      #       branches:
+      #         only: /docker\/.*/
+
+      # - deployable:
+      #     requires:
+      #       - test_deploy_pypi
+      #       - test_pytest
+      #       - build_docs
+      #     filters:
+      #       branches:
+      #         only: master
+      #       tags:
+      #         only: /.*/
+
+      # - deploy_docker:
+      #     requires:
+      #       - deployable
+      #     filters:
+      #       branches:
+      #         only: master
+      #       tags:
+      #         only: /.*/
+
+      # - deploy_pypi:
+      #     requires:
+      #       - deployable
+      #     filters:
+      #       branches:
+      #         ignore: /.*/
+      #       tags:
+      #         only: /.*/
