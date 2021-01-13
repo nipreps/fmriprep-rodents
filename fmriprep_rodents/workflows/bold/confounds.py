@@ -107,7 +107,7 @@ def init_bold_confs_wf(
         number of non steady state volumes
     t1w_mask
         Mask of the skull-stripped template image
-    t1w_tpms
+    anat_tpms
         List of tissue probability maps in T1w space
     t1_bold_xform
         Affine matrix that maps the T1w space into alignment with
@@ -196,7 +196,7 @@ were annotated as motion outliers.
                 # "rmsd_file",
                 "skip_vols",
                 "t1w_mask",
-                "t1w_tpms",
+                "anat_tpms",
                 "t1_bold_xform",
             ]
         ),
@@ -456,10 +456,10 @@ were annotated as motion outliers.
     # fmt:off
     workflow.connect([
         # Massage ROIs (in T1w space)
-        (inputnode, acc_tpm, [('t1w_tpms', 'in_files')]),
-        (inputnode, csf_roi, [(('t1w_tpms', _pick_csf), 'in_tpm'),
+        (inputnode, acc_tpm, [('anat_tpms', 'in_files')]),
+        (inputnode, csf_roi, [(('anat_tpms', _pick_csf), 'in_tpm'),
                               ('t1w_mask', 'in_mask')]),
-        (inputnode, wm_roi, [(('t1w_tpms', _pick_wm), 'in_tpm'),
+        (inputnode, wm_roi, [(('anat_tpms', _pick_wm), 'in_tpm'),
                              ('t1w_mask', 'in_mask')]),
         (inputnode, acc_roi, [('t1w_mask', 'in_mask')]),
         (acc_tpm, acc_roi, [('out_file', 'in_tpm')]),

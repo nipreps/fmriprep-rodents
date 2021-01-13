@@ -514,8 +514,6 @@ class workflow(_Config):
     instance keeping standard and nonstandard spaces."""
     use_aroma = None
     """Run ICA-:abbr:`AROMA (automatic removal of motion artifacts)`."""
-    use_bbr = None
-    """Run boundary-based registration for BOLD-to-T1w registration."""
     use_syn_sdc = None
     """Run *fieldmap-less* susceptibility-derived distortions estimation
     in the absence of any alternatives."""
