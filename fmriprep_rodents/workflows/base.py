@@ -130,7 +130,6 @@ def init_single_subject_wf(subject_id):
     from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
-    name = f"single_subject_{subject_id}_wf"
     subject_data = collect_data(
         config.execution.layout,
         subject_id,
@@ -139,27 +138,16 @@ def init_single_subject_wf(subject_id):
         bids_filters=config.execution.bids_filters,
     )[0]
 
-    if "flair" in config.workflow.ignore:
-        subject_data["flair"] = []
-    if "t2w" in config.workflow.ignore:
-        subject_data["t2w"] = []
-
     anat_only = config.workflow.anat_only
     # Make sure we always go through these two checks
     if not anat_only and not subject_data["bold"]:
         task_id = config.execution.task_id
         raise RuntimeError(
-            "No BOLD images found for participant {} and task {}. "
-            "All workflows require BOLD images.".format(
-                subject_id, task_id if task_id else "<all>"
-            )
+            f"No BOLD images found for participant <{subject_id}> and "
+            f"task <{task_id or 'all'}>. All workflows require BOLD images."
         )
 
-    # if not subject_data['t1w']:
-    #     raise Exception("No T1w images found for participant {}. "
-    #                     "All workflows require T1w images.".format(subject_id))
-
-    workflow = Workflow(name=name)
+    workflow = Workflow(name=f"single_subject_{subject_id}_wf")
     workflow.__desc__ = """
 Results included in this manuscript come from preprocessing
 performed using *fMRIPrep-rodents* {fmriprep_ver}

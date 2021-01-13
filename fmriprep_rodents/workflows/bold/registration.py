@@ -90,33 +90,48 @@ def init_bold_reg_wf(
 The BOLD reference was then co-registered to the T2w reference using
 `flirt` [FSL {fsl_ver}, @flirt].
 Co-registration was configured with six degrees of freedom.
-""".format(fsl_ver=FLIRTRPT().version or '<ver>')
+""".format(
+        fsl_ver=FLIRTRPT().version or "<ver>"
+    )
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['ref_bold_brain', 't1w_brain']),
-        name='inputnode')
-
-    outputnode = pe.Node(
-        niu.IdentityInterface(fields=['itk_bold_to_t1', 'itk_t1_to_bold', 'out_report']),
-        name='outputnode'
+        niu.IdentityInterface(fields=["ref_bold_brain", "t1w_brain"]), name="inputnode"
     )
 
-    coreg = pe.Node(FLIRTRPT(dof=bold2t1w_dof, generate_report=True, uses_qform=True), name='coreg')
+    outputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=["itk_bold_to_t1", "itk_t1_to_bold", "out_report"]
+        ),
+        name="outputnode",
+    )
+
+    coreg = pe.Node(
+        FLIRTRPT(dof=bold2t1w_dof, generate_report=True, uses_qform=True), name="coreg"
+    )
 
     if bold2t1w_init not in ("register", "header"):
         raise ValueError(f"Unknown BOLD-T1w initialization option: {bold2t1w_init}")
 
     if bold2t1w_init == "header":
-        raise NotImplementedError("Header-based registration initialization not supported for FSL")
+        raise NotImplementedError(
+            "Header-based registration initialization not supported for FSL"
+        )
 
-    invt_xfm = pe.Node(fsl.ConvertXFM(invert_xfm=True), name='invt_xfm',
-                       mem_gb=DEFAULT_MEMORY_MIN_GB)
+    invt_xfm = pe.Node(
+        fsl.ConvertXFM(invert_xfm=True), name="invt_xfm", mem_gb=DEFAULT_MEMORY_MIN_GB
+    )
 
     # BOLD to T1 transform matrix is from fsl, using c3 tools to convert to
     # something ANTs will like.
-    fsl2itk_fwd = pe.Node(c3.C3dAffineTool(fsl2ras=True, itk_transform=True),
-                          name='fsl2itk_fwd', mem_gb=DEFAULT_MEMORY_MIN_GB)
-    fsl2itk_inv = pe.Node(c3.C3dAffineTool(fsl2ras=True, itk_transform=True),
-                          name='fsl2itk_inv', mem_gb=DEFAULT_MEMORY_MIN_GB)
+    fsl2itk_fwd = pe.Node(
+        c3.C3dAffineTool(fsl2ras=True, itk_transform=True),
+        name="fsl2itk_fwd",
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
+    fsl2itk_inv = pe.Node(
+        c3.C3dAffineTool(fsl2ras=True, itk_transform=True),
+        name="fsl2itk_inv",
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
 
     # fmt:off
     workflow.connect([
@@ -138,8 +153,11 @@ Co-registration was configured with six degrees of freedom.
     if write_report:
         ds_report_reg = pe.Node(
             DerivativesDataSink(datatype="figures", dismiss_entities=("echo",)),
-            name='ds_report_reg', run_without_submitting=True,
-            desc='coreg', mem_gb=DEFAULT_MEMORY_MIN_GB)
+            name="ds_report_reg",
+            run_without_submitting=True,
+            desc="coreg",
+            mem_gb=DEFAULT_MEMORY_MIN_GB,
+        )
 
         # fmt:off
         workflow.connect([
@@ -230,16 +248,24 @@ def init_bold_t1_trans_wf(
     workflow = Workflow(name=name)
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['name_source', 'ref_bold_brain', 'ref_bold_mask',
-                    't1w_brain', 't1w_mask', 'bold_split', 'fieldwarp',
-                    'hmc_xforms', 'itk_bold_to_t1']),
-        name='inputnode'
+            fields=[
+                "name_source",
+                "ref_bold_brain",
+                "ref_bold_mask",
+                "t1w_brain",
+                "t1w_mask",
+                "bold_split",
+                "fieldwarp",
+                "hmc_xforms",
+                "itk_bold_to_t1",
+            ]
+        ),
+        name="inputnode",
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=[
-            'bold_t1', 'bold_t1_ref', 'bold_mask_t1']),
-        name='outputnode'
+        niu.IdentityInterface(fields=["bold_t1", "bold_t1_ref", "bold_mask_t1"]),
+        name="outputnode",
     )
 
     gen_ref = pe.Node(

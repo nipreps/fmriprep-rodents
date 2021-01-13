@@ -165,15 +165,20 @@ BIDS dataset."""
     )
 
     # Connect reportlets workflows
-    anat_reports_wf = init_anat_reports_wf(output_dir=output_dir,)
-    # fmt:off
-    workflow.connect([
-        (outputnode, anat_reports_wf, [
-            ('t2w_preproc', 'inputnode.t1w_preproc'),
-            ('t2w_mask', 'inputnode.t1w_mask'),
-            ('t2w_dseg', 'inputnode.anat_dseg')]),
-    ])
-    # fmt:on
+    anat_reports_wf = init_anat_reports_wf(freesurfer=False, output_dir=output_dir,)
+    workflow.connect(
+        [
+            (
+                outputnode,
+                anat_reports_wf,
+                [
+                    ("t2w_preproc", "inputnode.t1w_preproc"),
+                    ("t2w_mask", "inputnode.t1w_mask"),
+                    ("t2w_dseg", "inputnode.anat_dseg"),
+                ],
+            ),
+        ]
+    )
 
     if existing_derivatives is not None:
         LOGGER.log(
@@ -205,24 +210,38 @@ Anatomical preprocessing was reused from previously existing derivative objects.
             name="stdselect",
             run_without_submitting=True,
         )
-        # fmt:off
-        workflow.connect([
-            (inputnode, outputnode, [("subjects_dir", "subjects_dir"),
-                                     ("subject_id", "subject_id")]),
-            (inputnode, anat_reports_wf, [
-                ("subjects_dir", "inputnode.subjects_dir"),
-                ("subject_id", "inputnode.subject_id"),
-            ]),
-            (templatesource, stdselect, [("template", "key")]),
-            (outputnode, stdselect, [("std_preproc", "std_preproc"),
-                                     ("std_mask", "std_mask")]),
-            (stdselect, anat_reports_wf, [
-                ("key", "inputnode.template"),
-                ("std_preproc", "inputnode.std_t1w"),
-                ("std_mask", "inputnode.std_mask"),
-            ]),
-        ])
-        # fmt:on
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    outputnode,
+                    [("subjects_dir", "subjects_dir"), ("subject_id", "subject_id")],
+                ),
+                (
+                    inputnode,
+                    anat_reports_wf,
+                    [
+                        ("subjects_dir", "inputnode.subjects_dir"),
+                        ("subject_id", "inputnode.subject_id"),
+                    ],
+                ),
+                (templatesource, stdselect, [("template", "key")]),
+                (
+                    outputnode,
+                    stdselect,
+                    [("std_preproc", "std_preproc"), ("std_mask", "std_mask")],
+                ),
+                (
+                    stdselect,
+                    anat_reports_wf,
+                    [
+                        ("key", "inputnode.template"),
+                        ("std_preproc", "inputnode.std_t1w"),
+                        ("std_mask", "inputnode.std_mask"),
+                    ],
+                ),
+            ]
+        )
         return workflow
 
     # The workflow is not cached.
@@ -342,26 +361,21 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             ('outputnode.std2anat_xfm', 'std2anat_xfm'),
         ]),
     ])
-    # fmt:on
 
     # Connect reportlets
-    # fmt:off
     workflow.connect([
         (inputnode, anat_reports_wf, [
-            (("t2w", fix_multi_source_name), "inputnode.source_file"),
-        ]),
+            (('t2w', fix_multi_source_name), 'inputnode.source_file')]),
         (outputnode, anat_reports_wf, [
-            ("std_preproc", "inputnode.std_t1w"),
-            ("std_mask", "inputnode.std_mask"),
+            ('std_preproc', 'inputnode.std_t1w'),
+            ('std_mask', 'inputnode.std_mask'),
         ]),
         (anat_template_wf, anat_reports_wf, [
-            ("outputnode.out_report", "inputnode.t1w_conform_report"),
-        ]),
+            ('outputnode.out_report', 'inputnode.t1w_conform_report')]),
         (anat_norm_wf, anat_reports_wf, [
-            ("poutputnode.template", "inputnode.template"),
-        ]),
+            ('poutputnode.template', 'inputnode.template')]),
     ])
-    # fmt:on
+    # fmt:off
 
     # Write outputs ############################################3
     anat_derivatives_wf = init_anat_derivatives_wf(
@@ -390,33 +404,40 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     # fmt:on
 
     # 4. Brain tissue segmentation - FAST produces: 0 (bg), 1 (wm), 2 (csf), 3 (gm)
-    gm_tpm = get('Fischer344', label='GM', suffix='probseg')
-    wm_tpm = get('Fischer344', label='WM', suffix='probseg')
-    csf_tpm = get('Fischer344', label='CSF', suffix='probseg')
+    gm_tpm = get("Fischer344", label="GM", suffix="probseg")
+    wm_tpm = get("Fischer344", label="WM", suffix="probseg")
+    csf_tpm = get("Fischer344", label="CSF", suffix="probseg")
 
-    xfm_gm = pe.Node(ApplyTransforms(
-        input_image=_pop(gm_tpm),
-        interpolation='MultiLabel'),
-        name="xfm_gm")
-    xfm_wm = pe.Node(ApplyTransforms(
-        input_image=_pop(wm_tpm),
-        interpolation='MultiLabel'),
-        name="xfm_wm")
-    xfm_csf = pe.Node(ApplyTransforms(
-        input_image=_pop(csf_tpm),
-        interpolation='MultiLabel'),
-        name="xfm_csf")
+    xfm_gm = pe.Node(
+        ApplyTransforms(input_image=_pop(gm_tpm), interpolation="MultiLabel"),
+        name="xfm_gm",
+    )
+    xfm_wm = pe.Node(
+        ApplyTransforms(input_image=_pop(wm_tpm), interpolation="MultiLabel"),
+        name="xfm_wm",
+    )
+    xfm_csf = pe.Node(
+        ApplyTransforms(input_image=_pop(csf_tpm), interpolation="MultiLabel"),
+        name="xfm_csf",
+    )
 
-    mrg_tpms = pe.Node(niu.Merge(3), name='mrg_tpms')
+    mrg_tpms = pe.Node(niu.Merge(3), name="mrg_tpms")
 
-    anat_dseg = pe.Node(fsl.FAST(segments=True, no_bias=True, probability_maps=True),
-                        name='anat_dseg', mem_gb=3)
+    anat_dseg = pe.Node(
+        fsl.FAST(segments=True, no_bias=True, probability_maps=True),
+        name="anat_dseg",
+        mem_gb=3,
+    )
     # Change LookUp Table - BIDS wants: 0 (bg), 1 (gm), 2 (wm), 3 (csf)
-    lut_anat_dseg = pe.Node(niu.Function(function=_apply_bids_lut),
-                            name='lut_anat_dseg')
+    lut_anat_dseg = pe.Node(
+        niu.Function(function=_apply_bids_lut), name="lut_anat_dseg"
+    )
     lut_anat_dseg.inputs.lut = (0, 3, 1, 2)  # Maps: 0 -> 0, 3 -> 1, 1 -> 2, 2 -> 3.
-    fast2bids = pe.Node(niu.Function(function=_probseg_fast2bids), name="fast2bids",
-                        run_without_submitting=True)
+    fast2bids = pe.Node(
+        niu.Function(function=_probseg_fast2bids),
+        name="fast2bids",
+        run_without_submitting=True,
+    )
 
     # fmt:off
     workflow.connect([
@@ -627,16 +648,26 @@ The following template{tpls} selected for spatial normalization:
     )
 
     # Resample T1w-space inputs
-    tpl_moving = pe.Node(ApplyTransforms(
-        dimension=3, default_value=0, float=True,
-        interpolation='LanczosWindowedSinc'), name='tpl_moving')
+    tpl_moving = pe.Node(
+        ApplyTransforms(
+            dimension=3,
+            default_value=0,
+            float=True,
+            interpolation="LanczosWindowedSinc",
+        ),
+        name="tpl_moving",
+    )
 
-    std_mask = pe.Node(ApplyTransforms(interpolation='MultiLabel'), name='std_mask')
-    std_dseg = pe.Node(ApplyTransforms(interpolation='MultiLabel'), name='std_dseg')
+    std_mask = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="std_mask")
+    std_dseg = pe.Node(ApplyTransforms(interpolation="MultiLabel"), name="std_dseg")
 
-    std_tpms = pe.MapNode(ApplyTransforms(dimension=3, default_value=0, float=True,
-                                          interpolation='Gaussian'),
-                          iterfield=['input_image'], name='std_tpms')
+    std_tpms = pe.MapNode(
+        ApplyTransforms(
+            dimension=3, default_value=0, float=True, interpolation="Gaussian"
+        ),
+        iterfield=["input_image"],
+        name="std_tpms",
+    )
 
     # fmt:off
     workflow.connect([
@@ -681,24 +712,26 @@ The following template{tpls} selected for spatial normalization:
         name="outputnode",
         joinsource="inputnode",
     )
-    workflow.connect(
-        [(poutputnode, outputnode, [(f, f) for f in out_fields]),]
-    )
+    # fmt:off
+    workflow.connect([
+        (poutputnode, outputnode, [(f, f) for f in out_fields]),
+    ])
+    # fmt:on
 
     return workflow
 
 
-def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
+def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
     """
     Set up a battery of datasinks to store reports in the right location.
-
     Parameters
     ----------
+    freesurfer : :obj:`bool`
+        FreeSurfer was enabled
     output_dir : :obj:`str`
         Directory in which to save derivatives
     name : :obj:`str`
         Workflow name (default: anat_reports_wf)
-
     Inputs
     ------
     source_file
@@ -722,7 +755,6 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
         Brain (binary) mask estimated by brain extraction.
     template
         Template space and specifications
-
     """
     from niworkflows.interfaces import SimpleBeforeAfter
     from niworkflows.interfaces.masks import ROIsPlot
@@ -730,12 +762,19 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
 
     workflow = Workflow(name=name)
 
-    inputfields = ['source_file', 't1w_conform_report',
-                   't1w_preproc', 'anat_dseg', 't1w_mask',
-                   'template', 'std_t1w', 'std_mask',
-                   'subject_id', 'subjects_dir']
-    inputnode = pe.Node(niu.IdentityInterface(fields=inputfields),
-                        name='inputnode')
+    inputfields = [
+        "source_file",
+        "t1w_conform_report",
+        "t1w_preproc",
+        "anat_dseg",
+        "t1w_mask",
+        "template",
+        "std_t1w",
+        "std_mask",
+        "subject_id",
+        "subjects_dir",
+    ]
+    inputnode = pe.Node(niu.IdentityInterface(fields=inputfields), name="inputnode")
 
     seg_rpt = pe.Node(
         ROIsPlot(colors=["b", "magenta"], levels=[1.5, 2.5]), name="seg_rpt"
@@ -759,9 +798,15 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
     )
 
     ds_anat_dseg_mask_report = pe.Node(
-        DerivativesDataSink(base_directory=output_dir, suffix='dseg', datatype="figures",
-                            dismiss_entities=("session",)),
-        name='ds_anat_dseg_mask_report', run_without_submitting=True)
+        DerivativesDataSink(
+            base_directory=output_dir,
+            suffix="dseg",
+            datatype="figures",
+            dismiss_entities=("session",),
+        ),
+        name="ds_anat_dseg_mask_report",
+        run_without_submitting=True,
+    )
 
     # fmt:off
     workflow.connect([
@@ -801,26 +846,22 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
         run_without_submitting=True,
     )
 
-    workflow.connect(
-        [
-            (inputnode, tf_select, [("template", "template")]),
-            (inputnode, norm_rpt, [("template", "before_label")]),
-            (inputnode, norm_msk, [("std_t1w", "after"), ("std_mask", "after_mask")]),
-            (
-                tf_select,
-                norm_msk,
-                [("t2w_file", "before"), ("brain_mask", "mask_file")],
-            ),
-            (norm_msk, norm_rpt, [("before", "before"), ("after", "after")]),
-            (
-                inputnode,
-                ds_std_anat_report,
-                [(("template", _fmt_cohort), "space"), ("source_file", "source_file")],
-            ),
-            (norm_rpt, ds_std_anat_report, [("out_report", "in_file")]),
-        ]
-    )
-
+    # fmt:off
+    workflow.connect([
+        (inputnode, tf_select, [('template', 'template')]),
+        (inputnode, norm_rpt, [('template', 'before_label')]),
+        (inputnode, norm_msk, [('std_t1w', 'after'),
+                               ('std_mask', 'after_mask')]),
+        (tf_select, norm_msk, [('t2w_file', 'before'),
+                               ('brain_mask', 'mask_file')]),
+        (norm_msk, norm_rpt, [('before', 'before'),
+                              ('after', 'after')]),
+        (inputnode, ds_std_anat_report, [
+            (('template', _fmt_cohort), 'space'),
+            ('source_file', 'source_file')]),
+        (norm_rpt, ds_std_anat_report, [('out_report', 'in_file')]),
+    ])
+    # fmt:on
     return workflow
 
 
@@ -899,13 +940,25 @@ def init_anat_derivatives_wf(
 
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['template', 'source_files', 't1w_ref_xfms',
-                    't1w_preproc', 't1w_mask', 'anat_dseg', 'anat_tpms',
-                    'anat2std_xfm', 'std2anat_xfm',
-                    't1w2fsnative_xfm', 'fsnative2t1w_xfm', 'surfaces']),
-        name='inputnode')
+            fields=[
+                "template",
+                "source_files",
+                "t1w_ref_xfms",
+                "t1w_preproc",
+                "t1w_mask",
+                "anat_dseg",
+                "anat_tpms",
+                "anat2std_xfm",
+                "std2anat_xfm",
+                "t1w2fsnative_xfm",
+                "fsnative2t1w_xfm",
+                "surfaces",
+            ]
+        ),
+        name="inputnode",
+    )
 
-    raw_sources = pe.Node(niu.Function(function=_bids_relative), name='raw_sources')
+    raw_sources = pe.Node(niu.Function(function=_bids_relative), name="raw_sources")
     raw_sources.inputs.bids_root = bids_root
 
     ds_t1w_preproc = pe.Node(
@@ -925,12 +978,16 @@ def init_anat_derivatives_wf(
     ds_t1w_mask.inputs.Type = "Brain"
 
     ds_anat_dseg = pe.Node(
-        DerivativesDataSink(base_directory=output_dir, suffix='dseg', compress=True),
-        name='ds_anat_dseg', run_without_submitting=True)
+        DerivativesDataSink(base_directory=output_dir, suffix="dseg", compress=True),
+        name="ds_anat_dseg",
+        run_without_submitting=True,
+    )
 
     ds_anat_tpms = pe.Node(
-        DerivativesDataSink(base_directory=output_dir, suffix='probseg', compress=True),
-        name='ds_anat_tpms', run_without_submitting=True)
+        DerivativesDataSink(base_directory=output_dir, suffix="probseg", compress=True),
+        name="ds_anat_tpms",
+        run_without_submitting=True,
+    )
     ds_anat_tpms.inputs.label = tpm_labels
 
     # fmt:off
@@ -971,15 +1028,13 @@ def init_anat_derivatives_wf(
         # fmt:off
         workflow.connect([
             (inputnode, ds_t1w2std_xfm, [
-                ("anat2std_xfm", "in_file"),
-                (("template", _combine_cohort), "to"),
-                ("source_files", "source_file"),
-            ]),
+                ('anat2std_xfm', 'in_file'),
+                (('template', _combine_cohort), 'to'),
+                ('source_files', 'source_file')]),
             (inputnode, ds_std2t1w_xfm, [
-                ("std2anat_xfm", "in_file"),
-                (("template", _combine_cohort), "from"),
-                ("source_files", "source_file"),
-            ]),
+                ('std2anat_xfm', 'in_file'),
+                (('template', _combine_cohort), 'from'),
+                ('source_files', 'source_file')]),
         ])
         # fmt:on
 
@@ -1001,8 +1056,8 @@ def init_anat_derivatives_wf(
         )
         # fmt:off
         workflow.connect([
-            (inputnode, ds_t1w_ref_xfms, [("source_files", "source_file"),
-                                          ("t1w_ref_xfms", "in_file")]),
+            (inputnode, ds_t1w_ref_xfms, [('source_files', 'source_file'),
+                                          ('t1w_ref_xfms', 'in_file')]),
         ])
         # fmt:on
 
@@ -1105,7 +1160,6 @@ def init_anat_derivatives_wf(
         #           (intensity mean, per tissue). This order HAS to be matched also by the ``tpms``
         #           output in the data/io_spec.json file.
         ds_std_tpms.inputs.label = tpm_labels
-
         # fmt:off
         workflow.connect([
             (inputnode, anat2std_t1w, [('t1w_preproc', 'input_image')]),
@@ -1134,27 +1188,27 @@ def init_anat_derivatives_wf(
         workflow.connect(
             # Connect apply transforms nodes
             [
-                (gen_ref, n, [("out_file", "reference_image")])
+                (gen_ref, n, [('out_file', 'reference_image')])
                 for n in (anat2std_t1w, anat2std_mask, anat2std_dseg, anat2std_tpms)
             ]
             + [
-                (select_xfm, n, [("anat2std_xfm", "transforms")])
+                (select_xfm, n, [('anat2std_xfm', 'transforms')])
                 for n in (anat2std_t1w, anat2std_mask, anat2std_dseg, anat2std_tpms)
             ]
             # Connect the source_file input of these datasinks
             + [
-                (inputnode, n, [("source_files", "source_file")])
+                (inputnode, n, [('source_files', 'source_file')])
                 for n in (ds_std_t1w, ds_std_mask, ds_std_dseg, ds_std_tpms)
             ]
             # Connect the space input of these datasinks
             + [
-                (spacesource, n, [("space", "space"),
-                                  ("cohort", "cohort"),
-                                  ("resolution", "resolution")])
+                (spacesource, n, [
+                    ('space', 'space'), ('cohort', 'cohort'), ('resolution', 'resolution')
+                ])
                 for n in (ds_std_t1w, ds_std_mask, ds_std_dseg, ds_std_tpms)
             ]
         )
-    # fmt:on
+        # fmt:on
 
     return workflow
 
@@ -1223,26 +1277,3 @@ def _no_native(value):
         return int(value)
     except Exception:
         return None
-
-def _select_tpms():
-    from ...patch.utils import get_template_specs
-    template, specs = template
-    template = template.split(':')[0]  # Drop any cohort modifier if present
-    specs = specs.copy()
-    specs['suffix'] = specs.get('suffix', 'T2w')
-
-    # Sanitize resolution
-    res = specs.pop('res', None) or specs.pop('resolution', None) or 'native'
-    if res != 'native':
-        specs['resolution'] = res
-        return get_template_specs(template, template_spec=specs)[0]
-
-    # Map nonstandard resolutions to existing resolutions
-    if template == 'Fischer344':
-        default_res = None
-    else:
-        default_res = 2
-
-    out = get_template_specs(template, template_spec=specs, default_resolution=default_res)
-
-    return out[0]

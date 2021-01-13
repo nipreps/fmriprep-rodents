@@ -310,17 +310,19 @@ preprocessed BOLD runs*: {tpl}.
         )
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=[
-            'anat2std_xfm',
-            'bold_mask',
-            'bold_split',
-            'fieldwarp',
-            'hmc_xforms',
-            'itk_bold_to_t1',
-            'name_source',
-            'templates',
-        ]),
-        name='inputnode'
+        niu.IdentityInterface(
+            fields=[
+                "anat2std_xfm",
+                "bold_mask",
+                "bold_split",
+                "fieldwarp",
+                "hmc_xforms",
+                "itk_bold_to_t1",
+                "name_source",
+                "templates",
+            ]
+        ),
+        name="inputnode",
     )
 
     iterablesource = pe.Node(
@@ -421,11 +423,17 @@ preprocessed BOLD runs*: {tpl}.
     ])
     # fmt:on
 
-    output_names = ['bold_mask_std', 'bold_std', 'bold_std_ref',
-                    'spatial_reference', 'template']
+    output_names = [
+        "bold_mask_std",
+        "bold_std",
+        "bold_std_ref",
+        "spatial_reference",
+        "template",
+    ]
 
-    poutputnode = pe.Node(niu.IdentityInterface(fields=output_names),
-                          name='poutputnode')
+    poutputnode = pe.Node(
+        niu.IdentityInterface(fields=output_names), name="poutputnode"
+    )
     # fmt:off
     workflow.connect([
         # Connecting outputnode
