@@ -239,7 +239,7 @@ jobs:
                 -v /tmp/${DATASET}/work:/work \
                 --user $(id -u):$(id -g) \
                 poldracklab/fmriprep-rodents:latest /data /out participant -vv \
-                -w /work --sloppy --anat-only \
+                -w /work --sloppy --anat-only --fs-no-reconall \
                 --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
       - store_artifacts:
           path: /tmp/nirodents-bold-se/anatomical
@@ -261,8 +261,8 @@ jobs:
                 -v /tmp/${DATASET}/work:/work \
                 --user $(id -u):$(id -g) \
                 poldracklab/fmriprep-rodents:latest /data /out participant -vv \
-                -w /work --sloppy --notrack --skip-bids-validation \
-                --omp-nthreads 2 --nprocs 2
+                -w /work --sloppy --fs-no-reconall --force-no-bbr \
+                --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
       - store_artifacts:
           path: /tmp/nirodents-bold-se/derivatives
 
