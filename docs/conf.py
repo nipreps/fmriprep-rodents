@@ -16,7 +16,9 @@ import os
 import sys
 from datetime import datetime
 from sphinx import __version__ as sphinxversion
-from packaging import version as pver  # Avoid distutils.LooseVersion which is deprecated
+from packaging import (
+    version as pver,
+)  # Avoid distutils.LooseVersion which is deprecated
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -250,13 +252,10 @@ htmlhelp_basename = "fmriprepdoc"
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     # 'preamble': '',
-
     # Latex figure (float) alignment
     # 'figure_align': 'htbp',
 }
@@ -265,9 +264,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "fmriprep.tex", "fMRIprep Documentation",
-     author,
-     "manual"),
+    (master_doc, "fmriprep.tex", "fMRIprep Documentation", author, "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -295,10 +292,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, "fmriprep", "fmriprep Documentation",
-     [author], 1)
-]
+man_pages = [(master_doc, "fmriprep", "fmriprep Documentation", [author], 1)]
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -310,9 +304,15 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, "fmriprep", "fMRIprep Documentation",
-     author, "fmriprep", "One line description of project.",
-     "Miscellaneous"),
+    (
+        master_doc,
+        "fmriprep",
+        "fMRIprep Documentation",
+        author,
+        "fmriprep",
+        "One line description of project.",
+        "Miscellaneous",
+    ),
 ]
 
 # Documents to append as an appendix to all manuals.
@@ -328,10 +328,12 @@ texinfo_documents = [
 # texinfo_no_detailmenu = False
 
 # The following is used by sphinx.ext.linkcode to provide links to github
-linkcode_resolve = make_linkcode_resolve("fmriprep",
-                                         "https://github.com/poldracklab/"
-                                         "fmriprep/blob/{revision}/"
-                                         "{package}/{path}#L{lineno}")
+linkcode_resolve = make_linkcode_resolve(
+    "fmriprep",
+    "https://github.com/poldracklab/"
+    "fmriprep/blob/{revision}/"
+    "{package}/{path}#L{lineno}",
+)
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {

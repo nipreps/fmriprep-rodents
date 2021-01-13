@@ -25,7 +25,7 @@ class BIDSDataGrabber(_BIDSDataGrabber):
 
         self._results["out_dict"] = bids_dict
         self._results.update(bids_dict)
-        if not bids_dict['t2w']:
+        if not bids_dict["t2w"]:
             raise FileNotFoundError(
                 "No T2w images found for subject sub-{}".format(self.inputs.subject_id)
             )
@@ -45,8 +45,7 @@ class BIDSDataGrabber(_BIDSDataGrabber):
 
 class _TemplateFlowSelectInputSpec(TFSelectInputSpec):
     resolution = InputMultiObject(
-        traits.Either(None, traits.Int),
-        desc='Specify a template resolution index'
+        traits.Either(None, traits.Int), desc="Specify a template resolution index"
     )
 
 
@@ -62,33 +61,28 @@ class TemplateFlowSelect(_TFSelect):
     def _run_interface(self, runtime):
         specs = self.inputs.template_spec
         if isdefined(self.inputs.resolution):
-            specs['resolution'] = self.inputs.resolution
+            specs["resolution"] = self.inputs.resolution
         if isdefined(self.inputs.atlas):
-            specs['atlas'] = self.inputs.atlas
+            specs["atlas"] = self.inputs.atlas
         else:
-            specs['atlas'] = None
+            specs["atlas"] = None
 
         name = self.inputs.template.strip(":").split(":", 1)
         if len(name) > 1:
-            specs.update({
-                k: v for modifier in name[1].split(":")
-                for k, v in [tuple(modifier.split("-"))]
-                if k not in specs
-            })
+            specs.update(
+                {
+                    k: v
+                    for modifier in name[1].split(":")
+                    for k, v in [tuple(modifier.split("-"))]
+                    if k not in specs
+                }
+            )
 
-        self._results['brain_mask'] = tf.api.get(
-            name[0],
-            raise_empty=True,
-            desc='brain',
-            hemi=None,
-            suffix='mask',
-            **specs
+        self._results["brain_mask"] = tf.api.get(
+            name[0], raise_empty=True, desc="brain", hemi=None, suffix="mask", **specs
         )
-        self._results['t2w_file'] = tf.api.get(
-            name[0],
-            raise_empty=True,
-            suffix='T2w',
-            **specs,
+        self._results["t2w_file"] = tf.api.get(
+            name[0], raise_empty=True, suffix="T2w", **specs,
         )
         return runtime
 
@@ -110,6 +104,7 @@ class RobustMNINormalization(_Norm):
 
     def _get_ants_args(self):
         from niworkflows.interfaces.mni import mask, create_cfm
+
         args = {
             "moving_image": self.inputs.moving_image,
             "num_threads": self.inputs.num_threads,
@@ -275,7 +270,7 @@ class RobustMNINormalization(_Norm):
             ]
 
             # HACK: since Fischer has no resolutions
-            if self.inputs.template == 'Fischer344':
+            if self.inputs.template == "Fischer344":
                 default_resolution = None
             # Set the template resolution.
             elif isdefined(self.inputs.template_resolution):
@@ -290,8 +285,8 @@ class RobustMNINormalization(_Norm):
                 default_resolution=default_resolution,
             )
 
-            template_spec['atlas'] = None
-            template_spec['hemi'] = None
+            template_spec["atlas"] = None
+            template_spec["hemi"] = None
 
             # Set reference image
             self._reference_image = ref_template
