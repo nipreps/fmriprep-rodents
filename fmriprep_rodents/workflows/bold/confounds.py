@@ -107,7 +107,7 @@ def init_bold_confs_wf(
         number of non steady state volumes
     t1w_mask
         Mask of the skull-stripped template image
-    t1w_tpms
+    anat_tpms
         List of tissue probability maps in T1w space
     t1_bold_xform
         Affine matrix that maps the T1w space into alignment with
@@ -193,10 +193,10 @@ were annotated as motion outliers.
                 "bold",
                 "bold_mask",
                 "movpar_file",
-                "rmsd_file",
+                # "rmsd_file",
                 "skip_vols",
                 "t1w_mask",
-                "t1w_tpms",
+                "anat_tpms",
                 "t1_bold_xform",
             ]
         ),
@@ -211,7 +211,7 @@ were annotated as motion outliers.
     acc_tpm = pe.Node(
         AddTPMs(indices=[1, 2]), name="acc_tpm"  # BIDS convention (WM=1, CSF=2)
     )  # acc stands for aCompCor
-    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=30), name="csf_roi")
+    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=3), name="csf_roi")
     wm_roi = pe.Node(
         TPM2ROI(
             erode_prop=0.6, mask_erode_prop=0.6 ** 3
@@ -342,12 +342,12 @@ were annotated as motion outliers.
         mem_gb=0.01,
         run_without_submitting=True,
     )
-    add_rmsd_header = pe.Node(
-        AddTSVHeader(columns=["rmsd"]),
-        name="add_rmsd_header",
-        mem_gb=0.01,
-        run_without_submitting=True,
-    )
+    # add_rmsd_header = pe.Node(
+    #     AddTSVHeader(columns=["rmsd"]),
+    #     name="add_rmsd_header",
+    #     mem_gb=0.01,
+    #     run_without_submitting=True,
+    # )
     concat = pe.Node(
         GatherConfounds(), name="concat", mem_gb=0.01, run_without_submitting=True
     )
@@ -456,10 +456,10 @@ were annotated as motion outliers.
     # fmt:off
     workflow.connect([
         # Massage ROIs (in T1w space)
-        (inputnode, acc_tpm, [('t1w_tpms', 'in_files')]),
-        (inputnode, csf_roi, [(('t1w_tpms', _pick_csf), 'in_tpm'),
+        (inputnode, acc_tpm, [('anat_tpms', 'in_files')]),
+        (inputnode, csf_roi, [(('anat_tpms', _pick_csf), 'in_tpm'),
                               ('t1w_mask', 'in_mask')]),
-        (inputnode, wm_roi, [(('t1w_tpms', _pick_wm), 'in_tpm'),
+        (inputnode, wm_roi, [(('anat_tpms', _pick_wm), 'in_tpm'),
                              ('t1w_mask', 'in_mask')]),
         (inputnode, acc_roi, [('t1w_mask', 'in_mask')]),
         (acc_tpm, acc_roi, [('out_file', 'in_tpm')]),
@@ -512,7 +512,7 @@ were annotated as motion outliers.
 
         # Collate computed confounds together
         (inputnode, add_motion_headers, [('movpar_file', 'in_file')]),
-        (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
+        # (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
         (dvars, add_dvars_header, [('out_nstd', 'in_file')]),
         (dvars, add_std_dvars_header, [('out_std', 'in_file')]),
         (signals, concat, [('out_file', 'signals')]),
@@ -521,7 +521,7 @@ were annotated as motion outliers.
                             ('pre_filter_file', 'cos_basis')]),
         (acompcor, concat, [('components_file', 'acompcor')]),
         (add_motion_headers, concat, [('out_file', 'motion')]),
-        (add_rmsd_header, concat, [('out_file', 'rmsd')]),
+        # (add_rmsd_header, concat, [('out_file', 'rmsd')]),
         (add_dvars_header, concat, [('out_file', 'dvars')]),
         (add_std_dvars_header, concat, [('out_file', 'std_dvars')]),
 

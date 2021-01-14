@@ -223,8 +223,6 @@ def init_bold_std_trans_wf(
 
     Parameters
     ----------
-    freesurfer : :obj:`bool`
-        Whether to generate FreeSurfer's aseg/aparc segmentations on BOLD space.
     mem_gb : :obj:`float`
         Size of BOLD file in GB
     omp_nthreads : :obj:`int`
@@ -250,12 +248,6 @@ def init_bold_std_trans_wf(
     anat2std_xfm
         List of anatomical-to-standard space transforms generated during
         spatial normalization.
-    bold_aparc
-        FreeSurfer's ``aparc+aseg.mgz`` atlas projected into the T1w reference
-        (only if ``recon-all`` was run).
-    bold_aseg
-        FreeSurfer's ``aseg.mgz`` atlas projected into the T1w reference
-        (only if ``recon-all`` was run).
     bold_mask
         Skull-stripping mask of reference image
     bold_split
@@ -281,25 +273,19 @@ def init_bold_std_trans_wf(
         Reference, contrast-enhanced summary of the BOLD series, resampled to template space
     bold_mask_std
         BOLD series mask in template space
-    bold_aseg_std
-        FreeSurfer's ``aseg.mgz`` atlas, in template space at the BOLD resolution
-        (only if ``recon-all`` was run)
-    bold_aparc_std
-        FreeSurfer's ``aparc+aseg.mgz`` atlas, in template space at the BOLD resolution
-        (only if ``recon-all`` was run)
     template
         Template identifiers synchronized correspondingly to previously
         described outputs.
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.interfaces.utils import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     output_references = spaces.cached.get_spaces(nonstandard=False, dim=(3,))
@@ -327,8 +313,6 @@ preprocessed BOLD runs*: {tpl}.
         niu.IdentityInterface(
             fields=[
                 "anat2std_xfm",
-                "bold_aparc",
-                "bold_aseg",
                 "bold_mask",
                 "bold_split",
                 "fieldwarp",
@@ -445,7 +429,7 @@ preprocessed BOLD runs*: {tpl}.
         "bold_std_ref",
         "spatial_reference",
         "template",
-    ] + freesurfer * ["bold_aseg_std", "bold_aparc_std"]
+    ]
 
     poutputnode = pe.Node(
         niu.IdentityInterface(fields=output_names), name="poutputnode"
@@ -461,28 +445,6 @@ preprocessed BOLD runs*: {tpl}.
         (select_std, poutputnode, [('key', 'template')]),
     ])
     # fmt:on
-
-    if freesurfer:
-        # Sample the parcellation files to functional space
-        aseg_std_tfm = pe.Node(
-            ApplyTransforms(interpolation="MultiLabel"), name="aseg_std_tfm", mem_gb=1
-        )
-        aparc_std_tfm = pe.Node(
-            ApplyTransforms(interpolation="MultiLabel"), name="aparc_std_tfm", mem_gb=1
-        )
-
-        # fmt:off
-        workflow.connect([
-            (inputnode, aseg_std_tfm, [('bold_aseg', 'input_image')]),
-            (inputnode, aparc_std_tfm, [('bold_aparc', 'input_image')]),
-            (select_std, aseg_std_tfm, [('anat2std_xfm', 'transforms')]),
-            (select_std, aparc_std_tfm, [('anat2std_xfm', 'transforms')]),
-            (gen_ref, aseg_std_tfm, [('out_file', 'reference_image')]),
-            (gen_ref, aparc_std_tfm, [('out_file', 'reference_image')]),
-            (aseg_std_tfm, poutputnode, [('output_image', 'bold_aseg_std')]),
-            (aparc_std_tfm, poutputnode, [('output_image', 'bold_aparc_std')]),
-        ])
-        # fmt:on
 
     # Connect parametric outputs to a Join outputnode
     outputnode = pe.JoinNode(
@@ -566,8 +528,8 @@ def init_bold_preproc_trans_wf(
         Same as ``bold_ref``, but once the brain mask has been applied
 
     """
+    from ...patch.workflows.func import init_bold_reference_wf
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
 
@@ -611,7 +573,7 @@ the transforms to correct for head-motion"""
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
 
     # Generate a new BOLD reference
-    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads)
+    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
     bold_reference_wf.__desc__ = None  # Unset description to avoid second appearance
 
     # fmt:off
@@ -619,6 +581,7 @@ the transforms to correct for head-motion"""
         (inputnode, merge, [('name_source', 'header_source')]),
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+        (inputnode, bold_reference_wf, [('bold_mask', 'inputnode.bold_mask')]),
         (merge, outputnode, [('out_file', 'bold')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref'),

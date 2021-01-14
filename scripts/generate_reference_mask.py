@@ -2,7 +2,7 @@
 import sys
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from niworkflows.func.util import init_bold_reference_wf
+from fmriprep_rodents.patch.workflows.func import init_bold_reference_wf
 
 
 def sink_mask_file(in_file, orig_file, out_dir):
