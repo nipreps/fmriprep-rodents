@@ -147,7 +147,7 @@ def init_single_subject_wf(subject_id):
             f"task <{task_id or 'all'}>. All workflows require BOLD images."
         )
 
-    workflow = Workflow(name=name)
+    workflow = Workflow(name=f"single_subject_{subject_id}_wf")
     workflow.__desc__ = """
 Results included in this manuscript come from preprocessing
 performed using *fMRIPrep-rodents* {fmriprep_ver}
