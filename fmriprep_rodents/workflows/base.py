@@ -139,9 +139,9 @@ def init_single_subject_wf(subject_id):
         bids_filters=config.execution.bids_filters,
     )[0]
 
-    if "flair" in config.workflow.ignore:	
-        subject_data["flair"] = []	
-    if "t2w" in config.workflow.ignore:	
+    if "flair" in config.workflow.ignore:
+        subject_data["flair"] = []
+    if "t2w" in config.workflow.ignore:
         subject_data["t2w"] = []
 
     anat_only = config.workflow.anat_only
@@ -155,7 +155,7 @@ def init_single_subject_wf(subject_id):
             )
         )
 
-    workflow = Workflow(name=f"single_subject_{subject_id}_wf")
+    workflow = Workflow(name=name)
     workflow.__desc__ = """
 Results included in this manuscript come from preprocessing
 performed using *fMRIPrep-rodents* {fmriprep_ver}

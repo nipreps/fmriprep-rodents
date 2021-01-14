@@ -1,23 +1,15 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """Patched functional workflows."""
-from pkg_resources import resource_filename as pkgr_fn
-
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu, fsl, afni
+from nipype.interfaces import utility as niu
 
-from templateflow.api import get as get_template
 from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
+
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-from niworkflows.interfaces.fixes import (
-    FixHeaderRegistration as Registration,
-    FixHeaderApplyTransforms as ApplyTransforms,
-    FixN4BiasFieldCorrection as N4BiasFieldCorrection,
-)
-from niworkflows.interfaces.images import RegridToZooms, ValidateImage, MatchHeader
+from niworkflows.interfaces.images import ValidateImage
 from niworkflows.interfaces.masks import SimpleShowMaskRPT
 from niworkflows.interfaces.registration import EstimateReferenceImage
-from niworkflows.interfaces.utils import CopyXForm
 from niworkflows.utils.connections import listify
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 

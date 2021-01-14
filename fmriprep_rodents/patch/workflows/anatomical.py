@@ -210,38 +210,26 @@ Anatomical preprocessing was reused from previously existing derivative objects.
             name="stdselect",
             run_without_submitting=True,
         )
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    outputnode,
-                    [("subjects_dir", "subjects_dir"), ("subject_id", "subject_id")],
-                ),
-                (
-                    inputnode,
-                    anat_reports_wf,
-                    [
-                        ("subjects_dir", "inputnode.subjects_dir"),
-                        ("subject_id", "inputnode.subject_id"),
-                    ],
-                ),
-                (templatesource, stdselect, [("template", "key")]),
-                (
-                    outputnode,
-                    stdselect,
-                    [("std_preproc", "std_preproc"), ("std_mask", "std_mask")],
-                ),
-                (
-                    stdselect,
-                    anat_reports_wf,
-                    [
-                        ("key", "inputnode.template"),
-                        ("std_preproc", "inputnode.std_t1w"),
-                        ("std_mask", "inputnode.std_mask"),
-                    ],
-                ),
-            ]
+        # fmt:off
+        workflow.connect([
+            (inputnode, outputnode,
+                [("subjects_dir", "subjects_dir"), ("subject_id", "subject_id")],
+            ),
+            (inputnode,anat_reports_wf,
+                [("subjects_dir", "inputnode.subjects_dir"),
+                ("subject_id", "inputnode.subject_id"),],
+            ),
+            (templatesource, stdselect, [("template", "key")]),
+            (outputnode, stdselect,
+                [("std_preproc", "std_preproc"), ("std_mask", "std_mask")],
+            ),
+            (stdselect, anat_reports_wf,
+                [("key", "inputnode.template"),
+                ("std_preproc", "inputnode.std_t1w"),
+                ("std_mask", "inputnode.std_mask"),],
+            ),]
         )
+        # fmt:on
         return workflow
 
     # The workflow is not cached.
@@ -333,9 +321,8 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     )
 
     # fmt:off
-    workflow.connect(
-       [
-        # Step 1.
+    workflow.connect([
+        # Step 1
         (inputnode, anat_template_wf, [('t2w', 'inputnode.t1w')]),
         (anat_template_wf, anat_validate, [
             ('outputnode.t1w_ref', 'in_file')]),
@@ -347,7 +334,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             ('outputnode.t1w_realign_xfm', 't2w_ref_xfms')]),
         (buffernode, outputnode, [('t2w_brain', 't2w_brain'),
                                   ('t2w_mask', 't2w_mask')]),
-        # Steps 2, 3 and 4
+        # Steps 2 and 3
         (inputnode, anat_norm_wf, [
             (('t2w', fix_multi_source_name), 'inputnode.orig_t1w'),
             ('roi', 'inputnode.lesion_mask')]),
@@ -361,7 +348,6 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             ('outputnode.anat2std_xfm', 'anat2std_xfm'),
             ('outputnode.std2anat_xfm', 'std2anat_xfm'),
         ]),
-
         # Connect reportlets
         (inputnode, anat_reports_wf, [
             (('t2w', fix_multi_source_name), 'inputnode.source_file')]),
@@ -376,7 +362,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     ])
     # fmt:off
 
-    # Write outputs ############################################3
+    # Write outputs ############################################
     anat_derivatives_wf = init_anat_derivatives_wf(
         bids_root=bids_root,
         num_t1w=num_t2w,
@@ -450,6 +436,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
 
     # fmt:off
     workflow.connect([
+        # step 4
         (brain_extraction_wf, buffernode, [
             (('outputnode.out_brain', _pop), 't2w_brain'),
             ('outputnode.out_mask', 't2w_mask')]),
@@ -478,6 +465,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             ('t2w_tpms', 'inputnode.anat_tpms'),
             ('t2w_dseg', 'inputnode.anat_dseg')
         ]),
+        # step 5
         (anat_norm_wf, xfm_dseg, [('poutputnode.standardized', 'reference_image')]),
         (lut_anat_dseg, xfm_dseg, [('out', 'input_image')]),
         (anat_norm_wf, xfm_dseg, [('poutputnode.anat2std_xfm', 'transforms')]),
