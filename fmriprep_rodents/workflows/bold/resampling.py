@@ -875,7 +875,7 @@ def _split_spec(in_target):
 
 
 def _select_template(template):
-    from ...patch.utils import get_template_specs
+    from fmriprep_rodents.patch.utils import get_template_specs
 
     template, specs = template
     template = template.split(":")[0]  # Drop any cohort modifier if present

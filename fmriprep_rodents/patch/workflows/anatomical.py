@@ -874,14 +874,13 @@ def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
     norm_rpt = pe.Node(SimpleBeforeAfter(), name="norm_rpt", mem_gb=0.1)
     norm_rpt.inputs.after_label = "Participant"  # after
 
-    ds_std_t1w_report = pe.Node(
+    ds_std_anat_report = pe.Node(
         DerivativesDataSink(
             base_directory=output_dir,
-            suffix="T1w",
             datatype="figures",
             dismiss_entities=("session",),
         ),
-        name="ds_std_t1w_report",
+        name="ds_std_anat_report",
         run_without_submitting=True,
     )
 
@@ -898,10 +897,10 @@ def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
             (norm_msk, norm_rpt, [("before", "before"), ("after", "after")]),
             (
                 inputnode,
-                ds_std_t1w_report,
+                ds_std_anat_report,
                 [(("template", _fmt_cohort), "space"), ("source_file", "source_file")],
             ),
-            (norm_rpt, ds_std_t1w_report, [("out_report", "in_file")]),
+            (norm_rpt, ds_std_anat_report, [("out_report", "in_file")]),
         ]
     )
 
