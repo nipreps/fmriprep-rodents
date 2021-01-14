@@ -138,7 +138,7 @@ def init_single_subject_wf(subject_id):
         config.execution.echo_idx,
         bids_filters=config.execution.bids_filters,
     )[0]
-    
+
     if "flair" in config.workflow.ignore:	
         subject_data["flair"] = []	
     if "t2w" in config.workflow.ignore:	
