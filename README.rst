@@ -3,6 +3,12 @@
 This tool adapts *fMRIPrep* to the use-case of rodent preclinical imaging -- 
 because MRI is some times done on species other than the *homo sapiens*.
 
+.. image:: https://circleci.com/gh/poldracklab/fmriprep-rodents/tree/master.svg?style=shield
+  :target: https://circleci.com/gh/poldracklab/fmriprep-rodents/tree/master
+
+.. image:: https://github.com/poldracklab/fmriprep-rodents/workflows/Python%20package/badge.svg
+  :target: https://github.com/poldracklab/fmriprep-rodents/actions
+
 About
 -----
 Development was initiated by (soon-to-be) Dr. E. MacNicol in a research visit to the 
