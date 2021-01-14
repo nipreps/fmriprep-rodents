@@ -646,7 +646,7 @@ applied."""
             "Please modify the output path (suggestion: %s)."
             % bids_dir
             / "derivatives"
-            / ("fmriprep-rodents-%s" % version.split("+")[0])
+            / ("fmriprep-%s" % version.split("+")[0])
         )
 
     if bids_dir in work_dir.parents:
@@ -668,7 +668,7 @@ applied."""
         )
 
     # Setup directories
-    config.execution.log_dir = output_dir / "fmriprep-rodents" / "logs"
+    config.execution.log_dir = output_dir / "fmriprep" / "logs"
     # Check and create output and working directories
     config.execution.log_dir.mkdir(exist_ok=True, parents=True)
     output_dir.mkdir(exist_ok=True, parents=True)

@@ -56,7 +56,7 @@ def init_fmriprep_wf():
                 freesurfer_home=os.getenv("FREESURFER_HOME"),
                 spaces=config.workflow.spaces.get_fs_spaces(),
             ),
-            name="fsdir_run_%s" % config.execution.run_uuid.replace("-", "_"),
+            name=f"fsdir_run_{config.execution.run_uuid.replace('-', '_')}",
             run_without_submitting=True,
         )
         if config.execution.fs_subjects_dir is not None:
@@ -65,13 +65,18 @@ def init_fmriprep_wf():
     for subject_id in config.execution.participant_label:
         single_subject_wf = init_single_subject_wf(subject_id)
 
-        single_subject_wf.config["execution"]["crashdump_dir"] = str(
+        # Dump a copy of the config file into the log directory
+        log_dir = (
             config.execution.output_dir
-            / "fmriprep-rodents"
-            / "-".join(("sub", subject_id))
+            / "fmriprep"
+            / f"sub-{subject_id}"
             / "log"
             / config.execution.run_uuid
         )
+        log_dir.mkdir(exist_ok=True, parents=True)
+        config.to_filename(log_dir / "fmriprep.toml")
+
+        single_subject_wf.config["execution"]["crashdump_dir"] = str(log_dir)
         for node in single_subject_wf._get_all_nodes():
             node.config = deepcopy(single_subject_wf.config)
         if freesurfer:
@@ -80,17 +85,6 @@ def init_fmriprep_wf():
             )
         else:
             fmriprep_wf.add_nodes([single_subject_wf])
-
-        # Dump a copy of the config file into the log directory
-        log_dir = (
-            config.execution.output_dir
-            / "fmriprep-rodents"
-            / "sub-{}".format(subject_id)
-            / "log"
-            / config.execution.run_uuid
-        )
-        log_dir.mkdir(exist_ok=True, parents=True)
-        config.to_filename(log_dir / "fmriprep-rodents.toml")
 
     return fmriprep_wf
 
@@ -136,7 +130,7 @@ def init_single_subject_wf(subject_id):
     from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
-    name = "single_subject_%s_wf" % subject_id
+    name = f"single_subject_{subject_id}_wf"
     subject_data = collect_data(
         config.execution.layout,
         subject_id,
@@ -315,7 +309,7 @@ reconall <{config.workflow.run_reconall}>)."""
     # Overwrite ``out_path_base`` of smriprep's DataSinks
     for node in workflow.list_node_names():
         if node.split(".")[-1].startswith("ds_"):
-            workflow.get_node(node).interface.out_path_base = "fmriprep-rodents"
+            workflow.get_node(node).interface.out_path_base = "fmriprep"
 
     if anat_only:
         return workflow
