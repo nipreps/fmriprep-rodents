@@ -68,21 +68,6 @@ sections:
       using Lanczos interpolation.
     static: false
     subtitle: Alignment of functional and anatomical MRI data (volume based)
-  - bids: {datatype: figures, desc: flirtbbr, suffix: bold}
-    caption: FSL <code>flirt</code> was used to generate transformations from EPI-space
-      to T1w-space - The white matter mask calculated with FSL <code>fast</code> (brain
-      tissue segmentation) was used for BBR. Note that Nearest Neighbor interpolation
-      is used in the reportlets in order to highlight potential spin-history and other
-      artifacts, whereas final images are resampled using Lanczos interpolation.
-    static: false
-    subtitle: Alignment of functional and anatomical MRI data (surface driven)
-  - bids: {datatype: figures, desc: bbregister, suffix: bold}
-    caption: <code>bbregister</code> was used to generate transformations from EPI-space
-      to T1w-space. Note that Nearest Neighbor interpolation is used in the reportlets
-      in order to highlight potential spin-history and other artifacts, whereas final
-      images are resampled using Lanczos interpolation.
-    static: false
-    subtitle: Alignment of functional and anatomical MRI data (surface driven)
   - bids: {datatype: figures, desc: rois, suffix: bold}
     caption: Brain mask calculated on the BOLD signal (red contour), along with the
       masks used for a/tCompCor.<br />The aCompCor mask (magenta contour) is a conservative
