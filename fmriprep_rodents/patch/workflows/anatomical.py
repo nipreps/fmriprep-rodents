@@ -333,7 +333,8 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     )
 
     # fmt:off
-    workflow.connect([
+    workflow.connect(
+       [
         # Step 1.
         (inputnode, anat_template_wf, [('t2w', 'inputnode.t1w')]),
         (anat_template_wf, anat_validate, [
@@ -360,10 +361,8 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             ('outputnode.anat2std_xfm', 'anat2std_xfm'),
             ('outputnode.std2anat_xfm', 'std2anat_xfm'),
         ]),
-    ])
 
-    # Connect reportlets
-    workflow.connect([
+        # Connect reportlets
         (inputnode, anat_reports_wf, [
             (('t2w', fix_multi_source_name), 'inputnode.source_file')]),
         (outputnode, anat_reports_wf, [
@@ -543,11 +542,6 @@ def init_anat_norm_wf(
     moving_mask
         A precise brain mask separating skull/skin/fat from brain
         structures.
-    moving_segmentation
-        A brain tissue segmentation of the ``moving_image``.
-    moving_tpms
-        tissue probability maps (TPMs) corresponding to the
-        ``moving_segmentation``.
     lesion_mask
         (optional) A mask to exclude regions from the cost-function
         input domain to enable standardization of lesioned brains.
@@ -566,11 +560,6 @@ def init_anat_norm_wf(
         The template-to-T1w transform.
     std_mask
         The ``moving_mask`` in template space (matches ``standardized`` output).
-    std_dseg
-        The ``moving_segmentation`` in template space (matches ``standardized``
-        output).
-    std_tpms
-        The ``moving_tpms`` in template space (matches ``standardized`` output).
     template
         Template name extracted from the input parameter ``template``, for further
         use in downstream nodes.
@@ -628,8 +617,6 @@ The following template{tpls} selected for spatial normalization:
                 "lesion_mask",
                 "moving_image",
                 "moving_mask",
-                # "moving_segmentation",
-                # "moving_tpms",
                 "orig_t1w",
                 "template",
             ]
@@ -642,9 +629,7 @@ The following template{tpls} selected for spatial normalization:
         "anat2std_xfm",
         "standardized",
         "std2anat_xfm",
-        # "std_dseg",
         "std_mask",
-        # "std_tpms",
         "template",
         "template_spec",
     ]
