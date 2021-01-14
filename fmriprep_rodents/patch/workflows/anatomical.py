@@ -322,7 +322,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
 
     # fmt:off
     workflow.connect([
-        # Step 1
+        # Step 1.
         (inputnode, anat_template_wf, [('t2w', 'inputnode.t1w')]),
         (anat_template_wf, anat_validate, [
             ('outputnode.t1w_ref', 'in_file')]),
@@ -334,6 +334,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
             ('outputnode.t1w_realign_xfm', 't2w_ref_xfms')]),
         (buffernode, outputnode, [('t2w_brain', 't2w_brain'),
                                   ('t2w_mask', 't2w_mask')]),
+
         # Steps 2 and 3
         (inputnode, anat_norm_wf, [
             (('t2w', fix_multi_source_name), 'inputnode.orig_t1w'),
@@ -417,6 +418,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     lut_anat_dseg = pe.Node(
         niu.Function(function=_apply_bids_lut), name="lut_anat_dseg"
     )
+
     lut_anat_dseg.inputs.lut = (0, 3, 2, 1)  # Maps: 0 -> 0, 3 -> 1, 2 -> 2, 1 -> 3.
     fast2bids = pe.Node(
         niu.Function(function=_probseg_fast2bids),
