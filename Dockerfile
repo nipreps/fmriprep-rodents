@@ -179,10 +179,6 @@ RUN echo "${VERSION}" > /src/fmriprep/fmriprep_rodents/VERSION && \
     echo "include fmriprep_rodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
     pip install --no-cache-dir "/src/fmriprep[all]"
 
-RUN install -m 0755 \
-    /src/fmriprep/scripts/generate_reference_mask.py \
-    /usr/local/bin/generate_reference_mask
-
 RUN find $HOME -type d -exec chmod go=u {} + && \
     find $HOME -type f -exec chmod go=u {} + && \
     rm -rf $HOME/.npm $HOME/.conda $HOME/.empty
