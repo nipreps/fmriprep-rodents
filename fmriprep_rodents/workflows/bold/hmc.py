@@ -86,7 +86,7 @@ parameters) are estimated before any spatiotemporal filtering using
     #     name='mcflirt', mem_gb=mem_gb * 3)
 
     # fsl2itk = pe.Node(MCFLIRT2ITK(), name='fsl2itk',
-    #                   mem_gb=0.05, n_procs=omp_nthreads)
+    #                 mem_gb=0.05, n_procs=omp_nthreads)
 
     mc = pe.Node(
         afni.Volreg(zpad=4, outputtype="NIFTI_GZ", args="-prefix NULL -twopass"),
