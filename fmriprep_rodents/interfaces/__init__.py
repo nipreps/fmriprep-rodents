@@ -10,7 +10,7 @@ from .multiecho import T2SMap
 
 
 class DerivativesDataSink(bids.DerivativesDataSink):
-    out_path_base = "fmriprep-rodents"
+    out_path_base = "fmriprep"
 
 
 __all__ = [

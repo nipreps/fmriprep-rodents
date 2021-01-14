@@ -30,7 +30,7 @@ def build_workflow(config_file, retval):
 
     # warn if older results exist: check for dataset_description.json in output folder
     msg = check_pipeline_version(
-        version, output_dir / "fmriprep-rodents" / "dataset_description.json"
+        version, output_dir / "fmriprep" / "dataset_description.json"
     )
     if msg is not None:
         build_log.warning(msg)
@@ -121,7 +121,7 @@ def build_boilerplate(config_file, workflow):
     from .. import config
 
     config.load(config_file)
-    logs_path = config.execution.output_dir / "fmriprep-rodents" / "logs"
+    logs_path = config.execution.output_dir / "fmriprep" / "logs"
     boilerplate = workflow.visit_desc()
     citation_files = {
         ext: logs_path / ("CITATION.%s" % ext) for ext in ("bib", "tex", "md", "html")

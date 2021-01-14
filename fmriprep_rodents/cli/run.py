@@ -96,8 +96,8 @@ def main():
 
             crashfolders = [
                 config.execution.output_dir
-                / "fmriprep-rodents"
-                / "sub-{}".format(s)
+                / "fmriprep"
+                / f"sub-{s}"
                 / "log"
                 / config.execution.run_uuid
                 for s in config.execution.participant_label
@@ -119,7 +119,7 @@ def main():
 
         # Bother users with the boilerplate only iff the workflow went okay.
         boiler_file = (
-            config.execution.output_dir / "fmriprep-rodents" / "logs" / "CITATION.md"
+            config.execution.output_dir / "fmriprep" / "logs" / "CITATION.md"
         )
         if boiler_file.exists():
             if config.environment.exec_env in (
@@ -145,7 +145,7 @@ def main():
                 dseg_tsv,
                 str(
                     config.execution.output_dir
-                    / "fmriprep-rodents"
+                    / "fmriprep"
                     / "desc-aseg_dseg.tsv"
                 ),
             )
@@ -153,7 +153,7 @@ def main():
                 dseg_tsv,
                 str(
                     config.execution.output_dir
-                    / "fmriprep-rodents"
+                    / "fmriprep"
                     / "desc-aparcaseg_dseg.tsv"
                 ),
             )
@@ -171,7 +171,7 @@ def main():
             packagename="fmriprep_rodents",
         )
         write_derivative_description(
-            config.execution.bids_dir, config.execution.output_dir / "fmriprep-rodents"
+            config.execution.bids_dir, config.execution.output_dir / "fmriprep"
         )
 
         if failed_reports and not config.execution.notrack:

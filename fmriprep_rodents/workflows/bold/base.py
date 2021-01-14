@@ -606,12 +606,12 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             if node.split(".")[-1].startswith("ds_"):
                 fmap_unwarp_report_wf.get_node(
                     node
-                ).interface.out_path_base = "fmriprep-rodents"
+                ).interface.out_path_base = "fmriprep"
                 fmap_unwarp_report_wf.get_node(node).inputs.dismiss_entities = ("echo",)
 
         for node in bold_sdc_wf.list_node_names():
             if node.split(".")[-1].startswith("ds_"):
-                bold_sdc_wf.get_node(node).interface.out_path_base = "fmriprep-rodents"
+                bold_sdc_wf.get_node(node).interface.out_path_base = "fmriprep"
                 bold_sdc_wf.get_node(node).inputs.dismiss_entities = ("echo",)
 
         if "syn" in fmaps:
@@ -652,7 +652,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 if node.split(".")[-1].startswith("ds_"):
                     syn_unwarp_report_wf.get_node(
                         node
-                    ).interface.out_path_base = "fmriprep-rodents"
+                    ).interface.out_path_base = "fmriprep"
                     syn_unwarp_report_wf.get_node(node).inputs.dismiss_entities = (
                         "echo",
                     )
