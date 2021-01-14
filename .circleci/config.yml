@@ -252,7 +252,7 @@ jobs:
           name: Run full BOLD workflow on rodents
           no_output_timeout: 2h
           command: |
-            mkdir -p /tmp/${DATASET}/work
+            mkdir -p /tmp/${DATASET}/derivatives
             docker run -e FS_LICENSE=$FS_LICENSE -e FMRIPREP_DEV=1 --rm \
                 -v /tmp/data/${DATASET}:/data \
                 -v /tmp/${DATASET}/derivatives:/out \
