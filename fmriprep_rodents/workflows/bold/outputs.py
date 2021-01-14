@@ -10,8 +10,6 @@ from ...interfaces import DerivativesDataSink
 
 def init_func_derivatives_wf(
     bids_root,
-    cifti_output,
-    freesurfer,
     metadata,
     output_dir,
     spaces,
@@ -25,10 +23,6 @@ def init_func_derivatives_wf(
     ----------
     bids_root : :obj:`str`
         Original BIDS dataset path.
-    cifti_output : :obj:`bool`
-        Whether the ``--cifti-output`` flag was set.
-    freesurfer : :obj:`bool`
-        Whether FreeSurfer anatomical processing was run.
     metadata : :obj:`dict`
         Metadata dictionary associated to the BOLD run.
     output_dir : :obj:`str`
@@ -59,7 +53,6 @@ def init_func_derivatives_wf(
         niu.IdentityInterface(
             fields=[
                 "aroma_noise_ics",
-                "bold_cifti",
                 "bold_mask_std",
                 "bold_mask_t1",
                 "bold_std",
@@ -69,9 +62,6 @@ def init_func_derivatives_wf(
                 "bold_native",
                 "bold_native_ref",
                 "bold_mask_native",
-                "cifti_variant",
-                "cifti_metadata",
-                "cifti_density",
                 "confounds",
                 "confounds_metadata",
                 "melodic_mix",
@@ -349,30 +339,6 @@ def init_func_derivatives_wf(
                                              ('resolution', 'resolution'),
                                              ('density', 'density')]),
             (raw_sources, ds_bold_mask_std, [('out', 'RawSources')]),
-        ])
-        # fmt:on
-
-    # CIFTI output
-    if cifti_output:
-        ds_bold_cifti = pe.Node(
-            DerivativesDataSink(
-                base_directory=output_dir,
-                suffix="bold",
-                compress=False,
-                dismiss_entities=("echo",),
-            ),
-            name="ds_bold_cifti",
-            run_without_submitting=True,
-            mem_gb=DEFAULT_MEMORY_MIN_GB,
-        )
-
-        # fmt:off
-        workflow.connect([
-            (inputnode, ds_bold_cifti, [(('bold_cifti', _unlist), 'in_file'),
-                                        ('source_file', 'source_file'),
-                                        (('cifti_metadata', _get_surface), 'space'),
-                                        ('cifti_density', 'density'),
-                                        (('cifti_metadata', _read_json), 'meta_dict')])
         ])
         # fmt:on
 

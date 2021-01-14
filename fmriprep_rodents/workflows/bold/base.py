@@ -32,7 +32,6 @@ from .stc import init_bold_stc_wf
 from .t2s import init_bold_t2s_wf
 from .registration import init_bold_t1_trans_wf, init_bold_reg_wf
 from .resampling import (
-    init_bold_surf_wf,
     init_bold_std_trans_wf,
     init_bold_preproc_trans_wf,
 )
@@ -111,10 +110,6 @@ def init_func_preproc_wf(bold_file):
         Noise components identified by ICA-AROMA
     melodic_mix
         FSL MELODIC mixing matrix
-    bold_cifti
-        BOLD CIFTI image
-    cifti_variant
-        combination of target spaces for `bold_cifti`
 
     See Also
     --------
@@ -144,7 +139,6 @@ def init_func_preproc_wf(bold_file):
 
     # Have some options handy
     omp_nthreads = config.nipype.omp_nthreads
-    freesurfer = config.workflow.run_reconall
     spaces = config.workflow.spaces
     output_dir = str(config.execution.output_dir)
 
@@ -258,10 +252,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 "bold_std_ref",
                 "bold_mask_std",
                 "bold_native",
-                "bold_cifti",
-                "cifti_variant",
-                "cifti_metadata",
-                "cifti_density",
                 "surfaces",
                 "confounds",
                 "aroma_noise_ics",
@@ -283,7 +273,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     summary = pe.Node(
         FunctionalSummary(
             slice_timing=run_stc,
-            registration=("FSL", "FreeSurfer")[freesurfer],
+            registration="FSL",
             registration_dof=config.workflow.bold2t1w_dof,
             registration_init=config.workflow.bold2t1w_init,
             pe_direction=metadata.get("PhaseEncodingDirection"),
@@ -299,8 +289,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
     func_derivatives_wf = init_func_derivatives_wf(
         bids_root=layout.root,
-        cifti_output=config.workflow.cifti_output,
-        freesurfer=freesurfer,
         metadata=metadata,
         output_dir=output_dir,
         spaces=spaces,
@@ -319,10 +307,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('aroma_noise_ics', 'inputnode.aroma_noise_ics'),
             ('melodic_mix', 'inputnode.melodic_mix'),
             ('nonaggr_denoised_file', 'inputnode.nonaggr_denoised_file'),
-            ('bold_cifti', 'inputnode.bold_cifti'),
-            ('cifti_variant', 'inputnode.cifti_variant'),
-            ('cifti_metadata', 'inputnode.cifti_metadata'),
-            ('cifti_density', 'inputnode.cifti_density'),
             ('confounds_metadata', 'inputnode.confounds_metadata'),
         ]),
     ])
@@ -484,7 +468,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         # unused if multiecho, but this is safe
         (bold_hmc_wf, bold_t1_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
         (bold_reg_wf, bold_t1_trans_wf, [
-            ('outputnode.itk_bold_to_t1', 'inputnode.itk_bold_to_t1')]),
+            ('outputnode.bold2anat', 'inputnode.bold2anat')]),
         (bold_t1_trans_wf, outputnode, [('outputnode.bold_t1', 'bold_t1'),
                                         ('outputnode.bold_t1_ref', 'bold_t1_ref')]),
         # SDC (or pass-through workflow)
@@ -501,7 +485,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             #  ('outputnode.rmsd_file', 'inputnode.rmsd_file'),
         ]),
         (bold_reg_wf, bold_confounds_wf, [
-            ('outputnode.itk_t1_to_bold', 'inputnode.t1_bold_xform')]),
+            ('outputnode.anat2bold', 'inputnode.anat2bold')]),
         (bold_reference_wf, bold_confounds_wf, [
             ('outputnode.skip_vols', 'inputnode.skip_vols'),
             ('outputnode.bold_mask', 'inputnode.bold_mask')]),
@@ -565,7 +549,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         # fmt:off
         workflow.connect([
             (bold_reg_wf, boldmask_to_t1w, [
-                ('outputnode.itk_bold_to_t1', 'transforms')]),
+                ('outputnode.bold2anat', 'transforms')]),
             (bold_t1_trans_wf, boldmask_to_t1w, [
                 ('outputnode.bold_mask_t1', 'reference_image')]),
             (bold_bold_trans_wf, boldmask_to_t1w, [
@@ -590,7 +574,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         # Apply transforms in 1 shot
         # Only use uncompressed output if AROMA is to be run
         bold_std_trans_wf = init_bold_std_trans_wf(
-            freesurfer=freesurfer,
             mem_gb=mem_gb["resampled"],
             omp_nthreads=omp_nthreads,
             spaces=spaces,
@@ -607,7 +590,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (bold_hmc_wf, bold_std_trans_wf, [
                 ('outputnode.xforms', 'inputnode.hmc_xforms')]),
             (bold_reg_wf, bold_std_trans_wf, [
-                ('outputnode.itk_bold_to_t1', 'inputnode.itk_bold_to_t1')]),
+                ('outputnode.bold2anat', 'inputnode.bold2anat')]),
             (bold_bold_trans_wf, bold_std_trans_wf, [
                 ('outputnode.bold_mask', 'inputnode.bold_mask')]),
             (bold_std_trans_wf, outputnode, [('outputnode.bold_std', 'bold_std'),
@@ -718,101 +701,34 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ])
             # fmt:on
 
-    # SURFACES ##################################################################################
-    # Freesurfer
-    freesurfer_spaces = spaces.get_fs_spaces()
-    if freesurfer and freesurfer_spaces:
-        config.loggers.workflow.debug("Creating BOLD surface-sampling workflow.")
-        bold_surf_wf = init_bold_surf_wf(
-            mem_gb=mem_gb["resampled"],
-            surface_spaces=freesurfer_spaces,
-            medial_surface_nan=config.workflow.medial_surface_nan,
-            name="bold_surf_wf",
-        )
-        # fmt:off
-        workflow.connect([
-            (inputnode, bold_surf_wf, [
-                ('subjects_dir', 'inputnode.subjects_dir'),
-                ('subject_id', 'inputnode.subject_id'),
-                ('anat2fsnative_xfm', 'inputnode.t1w2fsnative_xfm')]),
-            (bold_t1_trans_wf, bold_surf_wf, [('outputnode.bold_t1', 'inputnode.source_file')]),
-            (bold_surf_wf, outputnode, [('outputnode.surfaces', 'surfaces')]),
-            (bold_surf_wf, func_derivatives_wf, [
-                ('outputnode.target', 'inputnode.surf_refs')]),
-        ])
-        # fmt:on
-
-        # CIFTI output
-        if config.workflow.cifti_output:
-            from .resampling import init_bold_grayords_wf
-
-            bold_grayords_wf = init_bold_grayords_wf(
-                grayord_density=config.workflow.cifti_output,
-                mem_gb=mem_gb["resampled"],
-                repetition_time=metadata["RepetitionTime"],
-            )
-
-            # fmt:off
-            workflow.connect([
-                (inputnode, bold_grayords_wf, [
-                    ('subjects_dir', 'inputnode.subjects_dir')]),
-                (bold_std_trans_wf, bold_grayords_wf, [
-                    ('outputnode.bold_std', 'inputnode.bold_std'),
-                    ('outputnode.spatial_reference', 'inputnode.spatial_reference')]),
-                (bold_surf_wf, bold_grayords_wf, [
-                    ('outputnode.surfaces', 'inputnode.surf_files'),
-                    ('outputnode.target', 'inputnode.surf_refs'),
-                ]),
-                (bold_grayords_wf, outputnode, [
-                    ('outputnode.cifti_bold', 'bold_cifti'),
-                    ('outputnode.cifti_variant', 'cifti_variant'),
-                    ('outputnode.cifti_metadata', 'cifti_metadata'),
-                    ('outputnode.cifti_density', 'cifti_density')]),
-            ])
-            # fmt:on
-
     if spaces.get_spaces(nonstandard=False, dim=(3,)):
         carpetplot_wf = init_carpetplot_wf(
             mem_gb=mem_gb["resampled"],
             metadata=metadata,
-            cifti_output=config.workflow.cifti_output,
             name="carpetplot_wf",
         )
-
-        if config.workflow.cifti_output:
-            # fmt:off
-            workflow.connect(
-                bold_grayords_wf, 'outputnode.cifti_bold', carpetplot_wf, 'inputnode.cifti_bold'
-            )
-            # fmt:on
-        else:
-            # Xform to 'Fischer344' is always computed.
-            carpetplot_select_std = pe.Node(
-                KeySelect(fields=["std2anat_xfm"], key="Fischer344"),
-                name="carpetplot_select_std",
-                run_without_submitting=True,
-            )
-
-            # fmt:off
-            workflow.connect([
-                (inputnode, carpetplot_select_std, [
-                    ('std2anat_xfm', 'std2anat_xfm'),
-                    ('template', 'keys')]),
-                (carpetplot_select_std, carpetplot_wf, [
-                    ('std2anat_xfm', 'inputnode.std2anat_xfm')]),
-                (bold_bold_trans_wf if not multiecho else bold_t2s_wf, carpetplot_wf, [
-                    ('outputnode.bold', 'inputnode.bold')]),
-                (bold_reference_wf, carpetplot_wf, [
-                    ('outputnode.bold_mask', 'inputnode.bold_mask')]),
-                (bold_reg_wf, carpetplot_wf, [
-                    ('outputnode.itk_t1_to_bold', 'inputnode.t1_bold_xform')]),
-            ])
-            # fmt:on
+        # Xform to 'Fischer344' is always computed.
+        carpetplot_select_std = pe.Node(
+            KeySelect(fields=["std2anat_xfm"], key="Fischer344"),
+            name="carpetplot_select_std",
+            run_without_submitting=True,
+        )
 
         # fmt:off
         workflow.connect([
+            (inputnode, carpetplot_select_std, [
+                ('std2anat_xfm', 'std2anat_xfm'),
+                ('template', 'keys')]),
+            (carpetplot_select_std, carpetplot_wf, [
+                ('std2anat_xfm', 'inputnode.std2anat_xfm')]),
+            (bold_bold_trans_wf if not multiecho else bold_t2s_wf, carpetplot_wf, [
+                ('outputnode.bold', 'inputnode.bold')]),
+            (bold_reference_wf, carpetplot_wf, [
+                ('outputnode.bold_mask', 'inputnode.bold_mask')]),
+            (bold_reg_wf, carpetplot_wf, [
+                ('outputnode.anat2bold', 'inputnode.anat2bold')]),
             (bold_confounds_wf, carpetplot_wf, [
-                        ('outputnode.confounds_file', 'inputnode.confounds_file')])
+                ('outputnode.confounds_file', 'inputnode.confounds_file')]),
         ])
         # fmt:on
 

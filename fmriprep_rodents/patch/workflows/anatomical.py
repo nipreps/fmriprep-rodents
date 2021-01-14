@@ -165,7 +165,7 @@ BIDS dataset."""
     )
 
     # Connect reportlets workflows
-    anat_reports_wf = init_anat_reports_wf(freesurfer=False, output_dir=output_dir,)
+    anat_reports_wf = init_anat_reports_wf(output_dir=output_dir,)
     workflow.connect(
         [
             (
@@ -710,13 +710,11 @@ The following template{tpls} selected for spatial normalization:
     return workflow
 
 
-def init_anat_reports_wf(*, freesurfer, output_dir, name="anat_reports_wf"):
+def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
     """
     Set up a battery of datasinks to store reports in the right location.
     Parameters
     ----------
-    freesurfer : :obj:`bool`
-        FreeSurfer was enabled
     output_dir : :obj:`str`
         Directory in which to save derivatives
     name : :obj:`str`

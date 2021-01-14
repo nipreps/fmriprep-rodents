@@ -109,7 +109,7 @@ def init_bold_confs_wf(
         Mask of the skull-stripped template image
     anat_tpms
         List of tissue probability maps in T1w space
-    t1_bold_xform
+    anat2bold
         Affine matrix that maps the T1w space into alignment with
         the native BOLD space
 
@@ -197,7 +197,7 @@ were annotated as motion outliers.
                 "skip_vols",
                 "t1w_mask",
                 "anat_tpms",
-                "t1_bold_xform",
+                "anat2bold",
             ]
         ),
         name="inputnode",
@@ -465,16 +465,16 @@ were annotated as motion outliers.
         (acc_tpm, acc_roi, [('out_file', 'in_tpm')]),
         # Map ROIs to BOLD
         (inputnode, csf_tfm, [('bold_mask', 'reference_image'),
-                              ('t1_bold_xform', 'transforms')]),
+                              ('anat2bold', 'transforms')]),
         (csf_roi, csf_tfm, [('roi_file', 'input_image')]),
         (inputnode, wm_tfm, [('bold_mask', 'reference_image'),
-                             ('t1_bold_xform', 'transforms')]),
+                             ('anat2bold', 'transforms')]),
         (wm_roi, wm_tfm, [('roi_file', 'input_image')]),
         (inputnode, acc_tfm, [('bold_mask', 'reference_image'),
-                              ('t1_bold_xform', 'transforms')]),
+                              ('anat2bold', 'transforms')]),
         (acc_roi, acc_tfm, [('roi_file', 'input_image')]),
         (inputnode, tcc_tfm, [('bold_mask', 'reference_image'),
-                              ('t1_bold_xform', 'transforms')]),
+                              ('anat2bold', 'transforms')]),
         (csf_roi, tcc_tfm, [('eroded_mask', 'input_image')]),
         # Mask ROIs with bold_mask
         (inputnode, csf_msk, [('bold_mask', 'in_mask')]),
@@ -557,7 +557,7 @@ were annotated as motion outliers.
     return workflow
 
 
-def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
+def init_carpetplot_wf(mem_gb, metadata, name="bold_carpet_wf"):
     """
     Build a workflow to generate *carpet* plots.
 
@@ -584,13 +584,11 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
         BOLD series mask
     confounds_file
         TSV of all aggregated confounds
-    t1_bold_xform
+    anat2bold
         Affine matrix that maps the T1w space into alignment with
         the native BOLD space
     std2anat_xfm
         ANTs-compatible affine-and-warp transform file
-    cifti_bold
-        BOLD image in CIFTI format, to be used in place of volumetric BOLD
 
     Outputs
     -------
@@ -607,9 +605,8 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
                 "bold",
                 "bold_mask",
                 "confounds_file",
-                "t1_bold_xform",
+                "anat2bold",
                 "std2anat_xfm",
-                "cifti_bold",
             ]
         ),
         name="inputnode",
@@ -668,30 +665,22 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
 
     workflow = Workflow(name=name)
     # no need for segmentations if using CIFTI
-    if cifti_output:
-        workflow.connect(inputnode, "cifti_bold", conf_plot, "in_func")
-    else:
-        # fmt:off
-        workflow.connect([
-            (inputnode, mrg_xfms, [('t1_bold_xform', 'in1'),
-                                   ('std2anat_xfm', 'in2')]),
-            (inputnode, resample_parc, [('bold_mask', 'reference_image')]),
-            (mrg_xfms, resample_parc, [('out', 'transforms')]),
-            # Carpetplot
-            (inputnode, conf_plot, [
-                ('bold', 'in_func'),
-                ('bold_mask', 'in_mask')]),
-            (resample_parc, conf_plot, [('output_image', 'in_segm')])
-        ])
-        # fmt:on
-
     # fmt:off
     workflow.connect([
+        (inputnode, mrg_xfms, [('anat2bold', 'in1'),
+                               ('std2anat_xfm', 'in2')]),
+        (inputnode, resample_parc, [('bold_mask', 'reference_image')]),
         (inputnode, conf_plot, [('confounds_file', 'confounds_file')]),
         (conf_plot, ds_report_bold_conf, [('out_file', 'in_file')]),
         (conf_plot, outputnode, [('out_file', 'out_carpetplot')]),
+        (mrg_xfms, resample_parc, [('out', 'transforms')]),
+        # Carpetplot
+        (inputnode, conf_plot, [('bold', 'in_func'),
+                                ('bold_mask', 'in_mask')]),
+        (resample_parc, conf_plot, [('output_image', 'in_segm')])
     ])
     # fmt:on
+
     return workflow
 
 

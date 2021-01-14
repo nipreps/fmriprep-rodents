@@ -10,7 +10,6 @@ fMRIPrep base processing workflows
 """
 
 import sys
-import os
 from copy import deepcopy
 
 from nipype.pipeline import engine as pe
@@ -43,24 +42,9 @@ def init_fmriprep_wf():
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.bids import BIDSFreeSurferDir
 
     fmriprep_wf = Workflow(name="fmriprep_wf")
     fmriprep_wf.base_dir = config.execution.work_dir
-
-    freesurfer = config.workflow.run_reconall
-    if freesurfer:
-        fsdir = pe.Node(
-            BIDSFreeSurferDir(
-                derivatives=config.execution.output_dir,
-                freesurfer_home=os.getenv("FREESURFER_HOME"),
-                spaces=config.workflow.spaces.get_fs_spaces(),
-            ),
-            name=f"fsdir_run_{config.execution.run_uuid.replace('-', '_')}",
-            run_without_submitting=True,
-        )
-        if config.execution.fs_subjects_dir is not None:
-            fsdir.inputs.subjects_dir = str(config.execution.fs_subjects_dir.absolute())
 
     for subject_id in config.execution.participant_label:
         single_subject_wf = init_single_subject_wf(subject_id)
@@ -79,12 +63,8 @@ def init_fmriprep_wf():
         single_subject_wf.config["execution"]["crashdump_dir"] = str(log_dir)
         for node in single_subject_wf._get_all_nodes():
             node.config = deepcopy(single_subject_wf.config)
-        if freesurfer:
-            fmriprep_wf.connect(
-                fsdir, "subjects_dir", single_subject_wf, "inputnode.subjects_dir"
-            )
-        else:
-            fmriprep_wf.add_nodes([single_subject_wf])
+
+        fmriprep_wf.add_nodes([single_subject_wf])
 
     return fmriprep_wf
 
@@ -249,15 +229,14 @@ It is released under the [CC0]\
             anat_derivatives.absolute(),
             subject_id,
             std_spaces,
-            config.workflow.run_reconall,
+            False,
         )
         if anat_derivatives is None:
             config.loggers.workflow.warning(
                 f"""\
 Attempted to access pre-existing anatomical derivatives at \
 <{config.execution.anat_derivatives}>, however not all expectations of fMRIPrep \
-were met (for participant <{subject_id}>, spaces <{', '.join(std_spaces)}>, \
-reconall <{config.workflow.run_reconall}>)."""
+were met (for participant <{subject_id}>, spaces <{', '.join(std_spaces)}>."""
             )
 
     # Preprocessing of T1w (includes registration to MNI)

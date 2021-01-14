@@ -11,7 +11,6 @@ from niworkflows.interfaces.registration import EstimateReferenceImage
 from niworkflows.utils.connections import listify
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 
-from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
@@ -138,8 +137,6 @@ methodology of *fMRIPrep*.
         EstimateReferenceImage(multiecho=multiecho), name="gen_ref", mem_gb=1
     )  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
 
-    brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False,)
-
     calc_dummy_scans = pe.Node(
         niu.Function(function=_pass_dummy_scans, output_names=["skip_vols_num"]),
         name="calc_dummy_scans",
@@ -172,6 +169,9 @@ methodology of *fMRIPrep*.
     # fmt: on
 
     if not pre_mask:
+        from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
+
+        brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False,)
         # fmt: off
         workflow.connect([
             (gen_ref, brain_extraction_wf, [
@@ -182,6 +182,19 @@ methodology of *fMRIPrep*.
                 ("outputnode.out_mask", "bold_mask"),
                 ("outputnode.out_brain", "ref_image_brain"),
             ]),
+        ])
+        # fmt: on
+    else:
+        from niworkflows.interfaces.nibabel import ApplyMask
+        mask_brain = pe.Node(ApplyMask(), name="mask_brain")
+
+        # fmt: off
+        workflow.connect([
+            (inputnode, mask_brain, [("bold_mask", "in_mask")]),
+            (inputnode, outputnode, [("bold_mask", "bold_mask")]),
+            (gen_ref, outputnode, [("ref_image", "ref_image")]),
+            (gen_ref, mask_brain, [("ref_image", "in_file")]),
+            (mask_brain, outputnode, [("out_file", "ref_image_brain")]),
         ])
         # fmt: on
 
@@ -216,9 +229,9 @@ by aligning and averaging{' the first echo of' * multiecho}
         mask_reportlet = pe.Node(SimpleShowMaskRPT(), name="mask_reportlet")
         # fmt: off
         workflow.connect([
-            (brain_extraction_wf, mask_reportlet, [
-                ("outputnode.out_corrected", "background_file"),
-                ("outputnode.out_mask", "mask_file"),
+            (outputnode, mask_reportlet, [
+                ("ref_image", "background_file"),
+                ("bold_mask", "mask_file"),
             ]),
         ])
         # fmt: on

@@ -42,7 +42,7 @@ FUNCTIONAL_TEMPLATE = """\
 \t\t\t<li>{multiecho}</li>
 \t\t\t<li>Slice timing correction: {stc}</li>
 \t\t\t<li>Susceptibility distortion correction: {sdc}</li>
-\t\t\t<li>Registration: {registration}</li>
+\t\t\t<li>Registration: FSL <code>flirt</code> rigid registration - 6 dof</li>
 \t\t\t<li>Non-steady-state volumes: {dummy_scan_desc}</li>
 \t\t</ul>
 \t\t</details>
@@ -192,7 +192,6 @@ class FunctionalSummaryInputSpec(BaseInterfaceInputSpec):
         mandatory=True,
         desc="Functional/anatomical registration method",
     )
-    fallback = traits.Bool(desc="Boundary-based registration rejected")
     registration_dof = traits.Enum(
         6, 9, 12, desc="Registration degrees of freedom", mandatory=True
     )
@@ -216,25 +215,11 @@ class FunctionalSummary(SummaryInterface):
     input_spec = FunctionalSummaryInputSpec
 
     def _generate_segment(self):
-        dof = self.inputs.registration_dof
         stc = {
             True: "Applied",
             False: "Not applied",
             "TooShort": "Skipped (too few volumes)",
         }[self.inputs.slice_timing]
-        # #TODO: Add a note about registration_init below?
-        reg = {
-            "FSL": [
-                "FSL <code>flirt</code> with boundary-based registration"
-                " (BBR) metric - %d dof" % dof,
-                "FSL <code>flirt</code> rigid registration - 6 dof",
-            ],
-            "FreeSurfer": [
-                "FreeSurfer <code>bbregister</code> "
-                "(boundary-based registration, BBR) - %d dof" % dof,
-                "FreeSurfer <code>mri_coreg</code> - %d dof" % dof,
-            ],
-        }[self.inputs.registration][self.inputs.fallback]
         if self.inputs.pe_direction is None:
             pedir = "MISSING - Assuming Anterior-Posterior"
         else:
@@ -275,7 +260,6 @@ class FunctionalSummary(SummaryInterface):
             pedir=pedir,
             stc=stc,
             sdc=self.inputs.distortion_correction,
-            registration=reg,
             confounds=re.sub(r"[\t ]+", ", ", conflist),
             tr=self.inputs.tr,
             dummy_scan_desc=dummy_scan_msg,

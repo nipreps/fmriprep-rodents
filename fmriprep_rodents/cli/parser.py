@@ -438,24 +438,6 @@ https://fmriprep-rodents.readthedocs.io/en/%s/spaces.html"""
         dest="hires",
         help="disable sub-millimeter (hires) reconstruction",
     )
-    g_surfs_xor = g_surfs.add_mutually_exclusive_group()
-    g_surfs_xor.add_argument(
-        "--cifti-output",
-        nargs="?",
-        const="91k",
-        default=False,
-        choices=("91k", "170k"),
-        type=str,
-        help="output preprocessed BOLD as a CIFTI dense timeseries. "
-        "Optionally, the number of grayordinate can be specified "
-        "(default is 91k, which equates to 2mm resolution)",
-    )
-    g_surfs_xor.add_argument(
-        "--fs-no-reconall",
-        action="store_false",
-        dest="run_reconall",
-        help="disable FreeSurfer surface preprocessing.",
-    )
 
     g_other = parser.add_argument_group("Other options")
     g_other.add_argument(

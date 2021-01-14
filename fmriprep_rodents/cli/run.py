@@ -135,28 +135,6 @@ def main():
                 "Works derived from this fMRIPrep execution should include the "
                 f"boilerplate text found in {boiler_file}.",
             )
-
-        if config.workflow.run_reconall:
-            from templateflow import api
-            from niworkflows.utils.misc import _copy_any
-
-            dseg_tsv = str(api.get("fsaverage", suffix="dseg", extension=[".tsv"]))
-            _copy_any(
-                dseg_tsv,
-                str(
-                    config.execution.output_dir
-                    / "fmriprep"
-                    / "desc-aseg_dseg.tsv"
-                ),
-            )
-            _copy_any(
-                dseg_tsv,
-                str(
-                    config.execution.output_dir
-                    / "fmriprep"
-                    / "desc-aparcaseg_dseg.tsv"
-                ),
-            )
         errno = 0
     finally:
         from ..patch.reports import generate_reports

@@ -74,9 +74,9 @@ def init_bold_reg_wf(
 
     Outputs
     -------
-    itk_bold_to_t1
+    bold2anat
         Affine transform from ``ref_bold_brain`` to T1 space (ITK format)
-    itk_t1_to_bold
+    anat2bold
         Affine transform from T1 space to BOLD space (ITK format)
     out_report
         Reportlet for assessing registration quality
@@ -99,7 +99,7 @@ Co-registration was configured with six degrees of freedom.
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=["itk_bold_to_t1", "itk_t1_to_bold", "out_report"]
+            fields=["bold2anat", "anat2bold", "out_report"]
         ),
         name="outputnode",
     )
@@ -145,8 +145,8 @@ Co-registration was configured with six degrees of freedom.
         (inputnode, fsl2itk_inv, [('ref_bold_brain', 'reference_file'),
                                   ('t1w_brain', 'source_file')]),
         (invt_xfm, fsl2itk_inv, [('out_file', 'transform_file')]),
-        (fsl2itk_fwd, outputnode, [('itk_transform', 'itk_bold_to_t1')]),
-        (fsl2itk_inv, outputnode, [('itk_transform', 'itk_t1_to_bold')]),
+        (fsl2itk_fwd, outputnode, [('itk_transform', 'bold2anat')]),
+        (fsl2itk_inv, outputnode, [('itk_transform', 'anat2bold')]),
     ])
     # fmt:on
 
@@ -185,8 +185,7 @@ def init_bold_t1_trans_wf(
             :simple_form: yes
 
             from fmriprep_rodents.workflows.bold.registration import init_bold_t1_trans_wf
-            wf = init_bold_t1_trans_wf(freesurfer=True,
-                                       mem_gb=3,
+            wf = init_bold_t1_trans_wf(mem_gb=3,
                                        omp_nthreads=1)
 
     Parameters
@@ -222,7 +221,7 @@ def init_bold_t1_trans_wf(
         Individual 3D BOLD volumes, not motion corrected
     hmc_xforms
         List of affine transforms aligning each volume to ``ref_image`` in ITK format
-    itk_bold_to_t1
+    bold2anat
         Affine transform from ``ref_bold_brain`` to T1 space (ITK format)
     fieldwarp
         a :abbr:`DFM (displacements field map)` in ITK format
@@ -257,7 +256,7 @@ def init_bold_t1_trans_wf(
                 "bold_split",
                 "fieldwarp",
                 "hmc_xforms",
-                "itk_bold_to_t1",
+                "bold2anat",
             ]
         ),
         name="inputnode",
@@ -283,7 +282,7 @@ def init_bold_t1_trans_wf(
                               ('t1w_mask', 'fov_mask')]),
         (inputnode, mask_t1w_tfm, [('ref_bold_mask', 'input_image')]),
         (gen_ref, mask_t1w_tfm, [('out_file', 'reference_image')]),
-        (inputnode, mask_t1w_tfm, [('itk_bold_to_t1', 'transforms')]),
+        (inputnode, mask_t1w_tfm, [('bold2anat', 'transforms')]),
         (mask_t1w_tfm, outputnode, [('output_image', 'bold_mask_t1')]),
     ])
     # fmt:on
@@ -324,7 +323,7 @@ def init_bold_t1_trans_wf(
             # merge transforms
             (inputnode, merge_xforms, [
                 ('hmc_xforms', 'in%d' % nforms),
-                ('itk_bold_to_t1', 'in1')]),
+                ('bold2anat', 'in1')]),
             (merge_xforms, bold_to_t1w_transform, [('out', 'transforms')]),
             (inputnode, bold_to_t1w_transform, [('bold_split', 'input_image')]),
         ])
@@ -340,7 +339,7 @@ def init_bold_t1_trans_wf(
         workflow.connect([
             (inputnode, bold_split, [('bold_split', 'in_file')]),
             (bold_split, bold_to_t1w_transform, [('out_files', 'input_image')]),
-            (inputnode, bold_to_t1w_transform, [('itk_bold_to_t1', 'transforms')]),
+            (inputnode, bold_to_t1w_transform, [('bold2anat', 'transforms')]),
         ])
         # fmt:on
 
