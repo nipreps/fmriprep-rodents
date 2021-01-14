@@ -70,7 +70,6 @@ def init_fmriprep_wf():
             config.execution.output_dir
             / "fmriprep"
             / f"sub-{subject_id}"
-
             / "log"
             / config.execution.run_uuid
         )
@@ -139,14 +138,21 @@ def init_single_subject_wf(subject_id):
         config.execution.echo_idx,
         bids_filters=config.execution.bids_filters,
     )[0]
+    
+    if "flair" in config.workflow.ignore:	
+        subject_data["flair"] = []	
+    if "t2w" in config.workflow.ignore:	
+        subject_data["t2w"] = []
 
     anat_only = config.workflow.anat_only
     # Make sure we always go through these two checks
     if not anat_only and not subject_data["bold"]:
         task_id = config.execution.task_id
         raise RuntimeError(
-            f"No BOLD images found for participant <{subject_id}> and "
-            f"task <{task_id or 'all'}>. All workflows require BOLD images."
+            "No BOLD images found for participant {} and task {}. "
+            "All workflows require BOLD images.".format(
+                subject_id, task_id if task_id else "<all>"
+            )
         )
 
     workflow = Workflow(name=f"single_subject_{subject_id}_wf")
