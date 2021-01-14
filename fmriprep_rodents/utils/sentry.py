@@ -95,7 +95,7 @@ def process_crashfile(crashfile):
                 break
 
         message = issue_title + "\n\n"
-        message += exception_text[-(8192 - len(message)) :]
+        message += exception_text[-(8192 - len(message)):]
         if fingerprint:
             sentry_sdk.add_breadcrumb(message=fingerprint, level="fatal")
         else:
