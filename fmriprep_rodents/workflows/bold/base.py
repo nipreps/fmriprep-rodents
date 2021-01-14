@@ -130,18 +130,13 @@ def init_func_preproc_wf(bold_file):
     * :py:func:`~fmriprep_rodents.workflows.bold.resampling.init_bold_std_trans_wf`
     * :py:func:`~fmriprep_rodents.workflows.bold.resampling.init_bold_preproc_trans_wf`
     * :py:func:`~fmriprep_rodents.workflows.bold.resampling.init_bold_surf_wf`
-    * :py:func:`~sdcflows.workflows.fmap.init_fmap_wf`
-    * :py:func:`~sdcflows.workflows.pepolar.init_pepolar_unwarp_wf`
-    * :py:func:`~sdcflows.workflows.phdiff.init_phdiff_wf`
-    * :py:func:`~sdcflows.workflows.syn.init_syn_sdc_wf`
-    * :py:func:`~sdcflows.workflows.unwarp.init_sdc_unwarp_wf`
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.nibabel import ApplyMask
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.interfaces.utils import DictMerge
-    from sdcflows.workflows.base import init_sdc_estimate_wf, fieldmap_wrangler
+
     from ...patch.workflows.func import init_bold_reference_wf
 
     mem_gb = {"filesize": 1, "resampled": 1, "largemem": 1}
@@ -210,19 +205,6 @@ def init_func_preproc_wf(bold_file):
             ",".join([os.path.basename(sbf) for sbf in sbref_files])
         )
     config.loggers.workflow.info(sbref_msg)
-
-    # Find fieldmaps. Options: (phase1|phase2|phasediff|epi|fieldmap|syn)
-    fmaps = None
-    if "fieldmaps" not in config.workflow.ignore:
-        fmaps = fieldmap_wrangler(
-            layout,
-            ref_file,
-            use_syn=config.workflow.use_syn_sdc,
-            force_syn=config.workflow.force_syn,
-        )
-    elif config.workflow.use_syn_sdc or config.workflow.force_syn:
-        # If fieldmaps are not enabled, activate SyN-SDC in unforced (False) mode
-        fmaps = {"syn": False}
 
     # Short circuits: (True and True and (False or 'TooShort')) == 'TooShort'
     run_stc = (
@@ -307,6 +289,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             pe_direction=metadata.get("PhaseEncodingDirection"),
             echo_idx=echo_idxs,
             tr=metadata.get("RepetitionTime"),
+            distortion_correction="<not implemented>",
         ),
         name="summary",
         mem_gb=config.DEFAULT_MEMORY_MIN_GB,
@@ -377,7 +360,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     # apply BOLD registration to T1w
     bold_t1_trans_wf = init_bold_t1_trans_wf(
         name="bold_t1_trans_wf",
-        use_fieldwarp=bool(fmaps),
+        use_fieldwarp=False,
         multiecho=multiecho,
         mem_gb=mem_gb["resampled"],
         omp_nthreads=omp_nthreads,
@@ -401,7 +384,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         mem_gb=mem_gb["resampled"],
         omp_nthreads=omp_nthreads,
         use_compression=not config.execution.low_mem,
-        use_fieldwarp=bool(fmaps),
+        use_fieldwarp=False,
         name="bold_bold_trans_wf",
     )
     bold_bold_trans_wf.inputs.inputnode.name_source = ref_file
@@ -444,11 +427,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     else:
         # for meepi, iterate over all meepi echos to boldbuffer
         boldbuffer.iterables = ("bold_file", bold_file)
-
-    # SDC (SUSCEPTIBILITY DISTORTION CORRECTION) or bypass ##########################
-    bold_sdc_wf = init_sdc_estimate_wf(
-        fmaps, metadata, omp_nthreads=omp_nthreads, debug=config.execution.debug
-    )
 
     # MULTI-ECHO EPI DATA #############################################
     if multiecho:
@@ -510,21 +488,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         (bold_t1_trans_wf, outputnode, [('outputnode.bold_t1', 'bold_t1'),
                                         ('outputnode.bold_t1_ref', 'bold_t1_ref')]),
         # SDC (or pass-through workflow)
-        (t1w_brain, bold_sdc_wf, [
-            ('out_file', 'inputnode.t1w_brain')]),
-        (bold_reference_wf, bold_sdc_wf, [
-            ('outputnode.ref_image', 'inputnode.epi_file'),
-            ('outputnode.ref_image_brain', 'inputnode.epi_brain'),
-            ('outputnode.bold_mask', 'inputnode.epi_mask')]),
-        (bold_sdc_wf, bold_t1_trans_wf, [
-            ('outputnode.out_warp', 'inputnode.fieldwarp'),
-            ('outputnode.epi_mask', 'inputnode.ref_bold_mask'),
-            ('outputnode.epi_brain', 'inputnode.ref_bold_brain')]),
-        (bold_sdc_wf, bold_bold_trans_wf, [
-            ('outputnode.out_warp', 'inputnode.fieldwarp')]),
-        (bold_sdc_wf, bold_reg_wf, [
-            ('outputnode.epi_brain', 'inputnode.ref_bold_brain')]),
-        (bold_sdc_wf, summary, [('outputnode.method', 'distortion_correction')]),
+        (bold_reference_wf, bold_t1_trans_wf, [
+            ('outputnode.bold_mask', 'inputnode.ref_bold_mask'),
+            ('outputnode.ref_image_brain', 'inputnode.ref_bold_brain')]),
+        (bold_reference_wf, bold_reg_wf, [
+            ('outputnode.ref_image_brain', 'inputnode.ref_bold_brain')]),
         # Connect bold_confounds_wf
         (inputnode, bold_confounds_wf, [('anat_tpms', 'inputnode.anat_tpms'),
                                         ('anat_mask', 'inputnode.t1w_mask')]),
@@ -582,81 +550,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ])
         # fmt:on
 
-    if fmaps:
-        from sdcflows.workflows.outputs import init_sdc_unwarp_report_wf
-
-        # Report on BOLD correction
-        fmap_unwarp_report_wf = init_sdc_unwarp_report_wf()
-        # fmt:off
-        workflow.connect([
-            (inputnode, fmap_unwarp_report_wf, [
-                ('anat_dseg', 'inputnode.in_seg')]),
-            (bold_reference_wf, fmap_unwarp_report_wf, [
-                ('outputnode.ref_image', 'inputnode.in_pre')]),
-            (bold_reg_wf, fmap_unwarp_report_wf, [
-                ('outputnode.itk_t1_to_bold', 'inputnode.in_xfm')]),
-            (bold_sdc_wf, fmap_unwarp_report_wf, [
-                ('outputnode.epi_corrected', 'inputnode.in_post')]),
-        ])
-        # fmt:on
-
-        # Overwrite ``out_path_base`` of unwarping DataSinks
-        # And ensure echo is dropped from report
-        for node in fmap_unwarp_report_wf.list_node_names():
-            if node.split(".")[-1].startswith("ds_"):
-                fmap_unwarp_report_wf.get_node(
-                    node
-                ).interface.out_path_base = "fmriprep"
-                fmap_unwarp_report_wf.get_node(node).inputs.dismiss_entities = ("echo",)
-
-        for node in bold_sdc_wf.list_node_names():
-            if node.split(".")[-1].startswith("ds_"):
-                bold_sdc_wf.get_node(node).interface.out_path_base = "fmriprep"
-                bold_sdc_wf.get_node(node).inputs.dismiss_entities = ("echo",)
-
-        if "syn" in fmaps:
-            sdc_select_std = pe.Node(
-                KeySelect(fields=["std2anat_xfm"]),
-                name="sdc_select_std",
-                run_without_submitting=True,
-            )
-            sdc_select_std.inputs.key = "MNI152NLin2009cAsym"
-            # fmt:off
-            workflow.connect([
-                (inputnode, sdc_select_std, [('std2anat_xfm', 'std2anat_xfm'),
-                                             ('template', 'keys')]),
-                (sdc_select_std, bold_sdc_wf, [('std2anat_xfm', 'inputnode.std2anat_xfm')]),
-            ])
-            # fmt:on
-
-        if fmaps.get("syn") is True:  # SyN forced
-            syn_unwarp_report_wf = init_sdc_unwarp_report_wf(
-                name="syn_unwarp_report_wf", forcedsyn=True
-            )
-            # fmt:off
-            workflow.connect([
-                (inputnode, syn_unwarp_report_wf, [
-                    ('anat_dseg', 'inputnode.in_seg')]),
-                (bold_reference_wf, syn_unwarp_report_wf, [
-                    ('outputnode.ref_image', 'inputnode.in_pre')]),
-                (bold_reg_wf, syn_unwarp_report_wf, [
-                    ('outputnode.itk_t1_to_bold', 'inputnode.in_xfm')]),
-                (bold_sdc_wf, syn_unwarp_report_wf, [
-                    ('outputnode.syn_ref', 'inputnode.in_post')]),
-            ])
-            # fmt:on
-
-            # Overwrite ``out_path_base`` of unwarping DataSinks
-            # And ensure echo is dropped from report
-            for node in syn_unwarp_report_wf.list_node_names():
-                if node.split(".")[-1].startswith("ds_"):
-                    syn_unwarp_report_wf.get_node(
-                        node
-                    ).interface.out_path_base = "fmriprep"
-                    syn_unwarp_report_wf.get_node(node).inputs.dismiss_entities = (
-                        "echo",
-                    )
-
     # Map final BOLD mask into T1w space (if required)
     nonstd_spaces = set(spaces.get_nonstandard())
     if nonstd_spaces.intersection(("T1w", "anat")):
@@ -703,7 +596,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             spaces=spaces,
             name="bold_std_trans_wf",
             use_compression=not config.execution.low_mem,
-            use_fieldwarp=bool(fmaps),
+            use_fieldwarp=False,
         )
         # fmt:off
         workflow.connect([
@@ -717,8 +610,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('outputnode.itk_bold_to_t1', 'inputnode.itk_bold_to_t1')]),
             (bold_bold_trans_wf, bold_std_trans_wf, [
                 ('outputnode.bold_mask', 'inputnode.bold_mask')]),
-            (bold_sdc_wf, bold_std_trans_wf, [
-                ('outputnode.out_warp', 'inputnode.fieldwarp')]),
             (bold_std_trans_wf, outputnode, [('outputnode.bold_std', 'bold_std'),
                                              ('outputnode.bold_std_ref', 'bold_std_ref'),
                                              ('outputnode.bold_mask_std', 'bold_mask_std')]),
@@ -767,7 +658,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 mem_gb=mem_gb["resampled"],
                 metadata=metadata,
                 omp_nthreads=omp_nthreads,
-                use_fieldwarp=bool(fmaps),
+                use_fieldwarp=False,
                 err_on_aroma_warn=config.workflow.aroma_err_on_warn,
                 aroma_melodic_dim=config.workflow.aroma_melodic_dim,
                 name="ica_aroma_wf",
