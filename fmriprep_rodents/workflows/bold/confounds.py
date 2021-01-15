@@ -107,9 +107,9 @@ def init_bold_confs_wf(
         number of non steady state volumes
     t1w_mask
         Mask of the skull-stripped template image
-    t1w_tpms
+    anat_tpms
         List of tissue probability maps in T1w space
-    t1_bold_xform
+    anat2bold
         Affine matrix that maps the T1w space into alignment with
         the native BOLD space
 
@@ -193,11 +193,11 @@ were annotated as motion outliers.
                 "bold",
                 "bold_mask",
                 "movpar_file",
-                "rmsd_file",
+                # "rmsd_file",
                 "skip_vols",
                 "t1w_mask",
-                "t1w_tpms",
-                "t1_bold_xform",
+                "anat_tpms",
+                "anat2bold",
             ]
         ),
         name="inputnode",
@@ -211,7 +211,7 @@ were annotated as motion outliers.
     acc_tpm = pe.Node(
         AddTPMs(indices=[1, 2]), name="acc_tpm"  # BIDS convention (WM=1, CSF=2)
     )  # acc stands for aCompCor
-    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=30), name="csf_roi")
+    csf_roi = pe.Node(TPM2ROI(erode_mm=0, mask_erode_mm=3), name="csf_roi")
     wm_roi = pe.Node(
         TPM2ROI(
             erode_prop=0.6, mask_erode_prop=0.6 ** 3
@@ -342,12 +342,12 @@ were annotated as motion outliers.
         mem_gb=0.01,
         run_without_submitting=True,
     )
-    add_rmsd_header = pe.Node(
-        AddTSVHeader(columns=["rmsd"]),
-        name="add_rmsd_header",
-        mem_gb=0.01,
-        run_without_submitting=True,
-    )
+    # add_rmsd_header = pe.Node(
+    #     AddTSVHeader(columns=["rmsd"]),
+    #     name="add_rmsd_header",
+    #     mem_gb=0.01,
+    #     run_without_submitting=True,
+    # )
     concat = pe.Node(
         GatherConfounds(), name="concat", mem_gb=0.01, run_without_submitting=True
     )
@@ -456,25 +456,25 @@ were annotated as motion outliers.
     # fmt:off
     workflow.connect([
         # Massage ROIs (in T1w space)
-        (inputnode, acc_tpm, [('t1w_tpms', 'in_files')]),
-        (inputnode, csf_roi, [(('t1w_tpms', _pick_csf), 'in_tpm'),
+        (inputnode, acc_tpm, [('anat_tpms', 'in_files')]),
+        (inputnode, csf_roi, [(('anat_tpms', _pick_csf), 'in_tpm'),
                               ('t1w_mask', 'in_mask')]),
-        (inputnode, wm_roi, [(('t1w_tpms', _pick_wm), 'in_tpm'),
+        (inputnode, wm_roi, [(('anat_tpms', _pick_wm), 'in_tpm'),
                              ('t1w_mask', 'in_mask')]),
         (inputnode, acc_roi, [('t1w_mask', 'in_mask')]),
         (acc_tpm, acc_roi, [('out_file', 'in_tpm')]),
         # Map ROIs to BOLD
         (inputnode, csf_tfm, [('bold_mask', 'reference_image'),
-                              ('t1_bold_xform', 'transforms')]),
+                              ('anat2bold', 'transforms')]),
         (csf_roi, csf_tfm, [('roi_file', 'input_image')]),
         (inputnode, wm_tfm, [('bold_mask', 'reference_image'),
-                             ('t1_bold_xform', 'transforms')]),
+                             ('anat2bold', 'transforms')]),
         (wm_roi, wm_tfm, [('roi_file', 'input_image')]),
         (inputnode, acc_tfm, [('bold_mask', 'reference_image'),
-                              ('t1_bold_xform', 'transforms')]),
+                              ('anat2bold', 'transforms')]),
         (acc_roi, acc_tfm, [('roi_file', 'input_image')]),
         (inputnode, tcc_tfm, [('bold_mask', 'reference_image'),
-                              ('t1_bold_xform', 'transforms')]),
+                              ('anat2bold', 'transforms')]),
         (csf_roi, tcc_tfm, [('eroded_mask', 'input_image')]),
         # Mask ROIs with bold_mask
         (inputnode, csf_msk, [('bold_mask', 'in_mask')]),
@@ -512,7 +512,7 @@ were annotated as motion outliers.
 
         # Collate computed confounds together
         (inputnode, add_motion_headers, [('movpar_file', 'in_file')]),
-        (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
+        # (inputnode, add_rmsd_header, [('rmsd_file', 'in_file')]),
         (dvars, add_dvars_header, [('out_nstd', 'in_file')]),
         (dvars, add_std_dvars_header, [('out_std', 'in_file')]),
         (signals, concat, [('out_file', 'signals')]),
@@ -521,7 +521,7 @@ were annotated as motion outliers.
                             ('pre_filter_file', 'cos_basis')]),
         (acompcor, concat, [('components_file', 'acompcor')]),
         (add_motion_headers, concat, [('out_file', 'motion')]),
-        (add_rmsd_header, concat, [('out_file', 'rmsd')]),
+        # (add_rmsd_header, concat, [('out_file', 'rmsd')]),
         (add_dvars_header, concat, [('out_file', 'dvars')]),
         (add_std_dvars_header, concat, [('out_file', 'std_dvars')]),
 
@@ -557,7 +557,7 @@ were annotated as motion outliers.
     return workflow
 
 
-def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
+def init_carpetplot_wf(mem_gb, metadata, name="bold_carpet_wf"):
     """
     Build a workflow to generate *carpet* plots.
 
@@ -584,13 +584,11 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
         BOLD series mask
     confounds_file
         TSV of all aggregated confounds
-    t1_bold_xform
+    anat2bold
         Affine matrix that maps the T1w space into alignment with
         the native BOLD space
     std2anat_xfm
         ANTs-compatible affine-and-warp transform file
-    cifti_bold
-        BOLD image in CIFTI format, to be used in place of volumetric BOLD
 
     Outputs
     -------
@@ -607,9 +605,8 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
                 "bold",
                 "bold_mask",
                 "confounds_file",
-                "t1_bold_xform",
+                "anat2bold",
                 "std2anat_xfm",
-                "cifti_bold",
             ]
         ),
         name="inputnode",
@@ -668,30 +665,22 @@ def init_carpetplot_wf(mem_gb, metadata, cifti_output, name="bold_carpet_wf"):
 
     workflow = Workflow(name=name)
     # no need for segmentations if using CIFTI
-    if cifti_output:
-        workflow.connect(inputnode, "cifti_bold", conf_plot, "in_func")
-    else:
-        # fmt:off
-        workflow.connect([
-            (inputnode, mrg_xfms, [('t1_bold_xform', 'in1'),
-                                   ('std2anat_xfm', 'in2')]),
-            (inputnode, resample_parc, [('bold_mask', 'reference_image')]),
-            (mrg_xfms, resample_parc, [('out', 'transforms')]),
-            # Carpetplot
-            (inputnode, conf_plot, [
-                ('bold', 'in_func'),
-                ('bold_mask', 'in_mask')]),
-            (resample_parc, conf_plot, [('output_image', 'in_segm')])
-        ])
-        # fmt:on
-
     # fmt:off
     workflow.connect([
+        (inputnode, mrg_xfms, [('anat2bold', 'in1'),
+                               ('std2anat_xfm', 'in2')]),
+        (inputnode, resample_parc, [('bold_mask', 'reference_image')]),
         (inputnode, conf_plot, [('confounds_file', 'confounds_file')]),
         (conf_plot, ds_report_bold_conf, [('out_file', 'in_file')]),
         (conf_plot, outputnode, [('out_file', 'out_carpetplot')]),
+        (mrg_xfms, resample_parc, [('out', 'transforms')]),
+        # Carpetplot
+        (inputnode, conf_plot, [('bold', 'in_func'),
+                                ('bold_mask', 'in_mask')]),
+        (resample_parc, conf_plot, [('output_image', 'in_segm')])
     ])
     # fmt:on
+
     return workflow
 
 

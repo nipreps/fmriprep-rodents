@@ -474,8 +474,6 @@ class workflow(_Config):
     bold2t1w_init = "register"
     """Whether to use standard coregistration ('register') or to initialize coregistration from the
     BOLD image-header ('header')."""
-    cifti_output = None
-    """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     dummy_scans = None
     """Set a number of initial scans to be considered nonsteady states."""
     fmap_bspline = None
@@ -500,8 +498,6 @@ class workflow(_Config):
     """Threshold for DVARS."""
     regressors_fd_th = None
     """Threshold for :abbr:`FD (frame-wise displacement)`."""
-    run_reconall = True
-    """Run FreeSurfer's surface reconstruction."""
     skull_strip_fixed_seed = False
     """Fix a seed for skull-stripping."""
     skull_strip_template = "Fischer344"
@@ -514,8 +510,6 @@ class workflow(_Config):
     instance keeping standard and nonstandard spaces."""
     use_aroma = None
     """Run ICA-:abbr:`AROMA (automatic removal of motion artifacts)`."""
-    use_bbr = None
-    """Run boundary-based registration for BOLD-to-T1w registration."""
     use_syn_sdc = None
     """Run *fieldmap-less* susceptibility-derived distortions estimation
     in the absence of any alternatives."""

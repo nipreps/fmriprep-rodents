@@ -283,20 +283,6 @@ https://fmriprep-rodents.readthedocs.io/en/%s/spaces.html"""
         "6 degrees (rotation and translation) are used by default.",
     )
     g_conf.add_argument(
-        "--force-bbr",
-        action="store_true",
-        dest="use_bbr",
-        default=None,
-        help="Always use boundary-based registration (no goodness-of-fit checks)",
-    )
-    g_conf.add_argument(
-        "--force-no-bbr",
-        action="store_false",
-        dest="use_bbr",
-        default=None,
-        help="Do not use boundary-based registration (no goodness-of-fit checks)",
-    )
-    g_conf.add_argument(
         "--medial-surface-nan",
         required=False,
         action="store_true",
@@ -451,24 +437,6 @@ https://fmriprep-rodents.readthedocs.io/en/%s/spaces.html"""
         action="store_false",
         dest="hires",
         help="disable sub-millimeter (hires) reconstruction",
-    )
-    g_surfs_xor = g_surfs.add_mutually_exclusive_group()
-    g_surfs_xor.add_argument(
-        "--cifti-output",
-        nargs="?",
-        const="91k",
-        default=False,
-        choices=("91k", "170k"),
-        type=str,
-        help="output preprocessed BOLD as a CIFTI dense timeseries. "
-        "Optionally, the number of grayordinate can be specified "
-        "(default is 91k, which equates to 2mm resolution)",
-    )
-    g_surfs_xor.add_argument(
-        "--fs-no-reconall",
-        action="store_false",
-        dest="run_reconall",
-        help="disable FreeSurfer surface preprocessing.",
     )
 
     g_other = parser.add_argument_group("Other options")

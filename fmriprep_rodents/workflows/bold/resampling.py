@@ -12,180 +12,12 @@ Resampling workflows
 from ...config import DEFAULT_MEMORY_MIN_GB
 
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu, freesurfer as fs
+from nipype.interfaces import utility as niu
 from nipype.interfaces.fsl import Split as FSLSplit
 import nipype.interfaces.workbench as wb
 
 
-def init_bold_surf_wf(mem_gb, surface_spaces, medial_surface_nan, name="bold_surf_wf"):
-    """
-    Sample functional images to FreeSurfer surfaces.
-
-    For each vertex, the cortical ribbon is sampled at six points (spaced 20% of thickness apart)
-    and averaged.
-    Outputs are in GIFTI format.
-
-    Workflow Graph
-        .. workflow::
-            :graph2use: colored
-            :simple_form: yes
-
-            from fmriprep_rodents.workflows.bold import init_bold_surf_wf
-            wf = init_bold_surf_wf(mem_gb=0.1,
-                                   surface_spaces=['fsnative', 'fsaverage5'],
-                                   medial_surface_nan=False)
-
-    Parameters
-    ----------
-    surface_spaces : :obj:`list`
-        List of FreeSurfer surface-spaces (either ``fsaverage{3,4,5,6,}`` or ``fsnative``)
-        the functional images are to be resampled to.
-        For ``fsnative``, images will be resampled to the individual subject's
-        native surface.
-    medial_surface_nan : :obj:`bool`
-        Replace medial wall values with NaNs on functional GIFTI files
-
-    Inputs
-    ------
-    source_file
-        Motion-corrected BOLD series in T1 space
-    t1w_preproc
-        Bias-corrected structural template image
-    subjects_dir
-        FreeSurfer SUBJECTS_DIR
-    subject_id
-        FreeSurfer subject ID
-    t1w2fsnative_xfm
-        LTA-style affine matrix translating from T1w to FreeSurfer-conformed subject space
-
-    Outputs
-    -------
-    surfaces
-        BOLD series, resampled to FreeSurfer surfaces
-
-    """
-    from nipype.interfaces.io import FreeSurferSource
-    from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.surf import GiftiSetAnatomicalStructure
-
-    workflow = Workflow(name=name)
-    workflow.__desc__ = """\
-The BOLD time-series were resampled onto the following surfaces
-(FreeSurfer reconstruction nomenclature):
-{out_spaces}.
-""".format(
-        out_spaces=", ".join(["*%s*" % s for s in surface_spaces])
-    )
-
-    inputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=["source_file", "subject_id", "subjects_dir", "t1w2fsnative_xfm"]
-        ),
-        name="inputnode",
-    )
-    itersource = pe.Node(niu.IdentityInterface(fields=["target"]), name="itersource")
-    itersource.iterables = [("target", surface_spaces)]
-
-    get_fsnative = pe.Node(
-        FreeSurferSource(), name="get_fsnative", run_without_submitting=True
-    )
-
-    def select_target(subject_id, space):
-        """Get the target subject ID, given a source subject ID and a target space."""
-        return subject_id if space == "fsnative" else space
-
-    targets = pe.Node(
-        niu.Function(function=select_target),
-        name="targets",
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-
-    # Rename the source file to the output space to simplify naming later
-    rename_src = pe.Node(
-        niu.Rename(format_string="%(subject)s", keep_ext=True),
-        name="rename_src",
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-    itk2lta = pe.Node(
-        niu.Function(function=_itk2lta), name="itk2lta", run_without_submitting=True
-    )
-    sampler = pe.MapNode(
-        fs.SampleToSurface(
-            cortex_mask=True,
-            interp_method="trilinear",
-            out_type="gii",
-            override_reg_subj=True,
-            sampling_method="average",
-            sampling_range=(0, 1, 0.2),
-            sampling_units="frac",
-        ),
-        iterfield=["hemi"],
-        name="sampler",
-        mem_gb=mem_gb * 3,
-    )
-    sampler.inputs.hemi = ["lh", "rh"]
-    update_metadata = pe.MapNode(
-        GiftiSetAnatomicalStructure(),
-        iterfield=["in_file"],
-        name="update_metadata",
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-
-    outputnode = pe.JoinNode(
-        niu.IdentityInterface(fields=["surfaces", "target"]),
-        joinsource="itersource",
-        name="outputnode",
-    )
-
-    # fmt:off
-    workflow.connect([
-        (inputnode, get_fsnative, [('subject_id', 'subject_id'),
-                                   ('subjects_dir', 'subjects_dir')]),
-        (inputnode, targets, [('subject_id', 'subject_id')]),
-        (inputnode, rename_src, [('source_file', 'in_file')]),
-        (inputnode, itk2lta, [('source_file', 'src_file'),
-                              ('t1w2fsnative_xfm', 'in_file')]),
-        (get_fsnative, itk2lta, [('T1', 'dst_file')]),
-        (inputnode, sampler, [('subjects_dir', 'subjects_dir'),
-                              ('subject_id', 'subject_id')]),
-        (itersource, targets, [('target', 'space')]),
-        (itersource, rename_src, [('target', 'subject')]),
-        (itk2lta, sampler, [('out', 'reg_file')]),
-        (targets, sampler, [('out', 'target_subject')]),
-        (rename_src, sampler, [('out_file', 'source_file')]),
-        (update_metadata, outputnode, [('out_file', 'surfaces')]),
-        (itersource, outputnode, [('target', 'target')]),
-    ])
-    # fmt:on
-
-    if not medial_surface_nan:
-        workflow.connect(sampler, "out_file", update_metadata, "in_file")
-        return workflow
-
-    from niworkflows.interfaces.freesurfer import MedialNaNs
-
-    # Refine if medial vertices should be NaNs
-    medial_nans = pe.MapNode(
-        MedialNaNs(),
-        iterfield=["in_file"],
-        name="medial_nans",
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-
-    # fmt:off
-    workflow.connect([
-        (inputnode, medial_nans, [('subjects_dir', 'subjects_dir')]),
-        (sampler, medial_nans, [('out_file', 'in_file')]),
-        (medial_nans, update_metadata, [('out_file', 'in_file')]),
-    ])
-    # fmt:on
-    return workflow
-
-
 def init_bold_std_trans_wf(
-    freesurfer,
     mem_gb,
     omp_nthreads,
     spaces,
@@ -212,7 +44,6 @@ def init_bold_std_trans_wf(
             from niworkflows.utils.spaces import SpatialReferences
             from fmriprep_rodents.workflows.bold import init_bold_std_trans_wf
             wf = init_bold_std_trans_wf(
-                freesurfer=True,
                 mem_gb=3,
                 omp_nthreads=1,
                 spaces=SpatialReferences(
@@ -223,8 +54,6 @@ def init_bold_std_trans_wf(
 
     Parameters
     ----------
-    freesurfer : :obj:`bool`
-        Whether to generate FreeSurfer's aseg/aparc segmentations on BOLD space.
     mem_gb : :obj:`float`
         Size of BOLD file in GB
     omp_nthreads : :obj:`int`
@@ -250,12 +79,6 @@ def init_bold_std_trans_wf(
     anat2std_xfm
         List of anatomical-to-standard space transforms generated during
         spatial normalization.
-    bold_aparc
-        FreeSurfer's ``aparc+aseg.mgz`` atlas projected into the T1w reference
-        (only if ``recon-all`` was run).
-    bold_aseg
-        FreeSurfer's ``aseg.mgz`` atlas projected into the T1w reference
-        (only if ``recon-all`` was run).
     bold_mask
         Skull-stripping mask of reference image
     bold_split
@@ -264,7 +87,7 @@ def init_bold_std_trans_wf(
         a :abbr:`DFM (displacements field map)` in ITK format
     hmc_xforms
         List of affine transforms aligning each volume to ``ref_image`` in ITK format
-    itk_bold_to_t1
+    bold2anat
         Affine transform from ``ref_bold_brain`` to T1 space (ITK format)
     name_source
         BOLD series NIfTI file
@@ -281,25 +104,19 @@ def init_bold_std_trans_wf(
         Reference, contrast-enhanced summary of the BOLD series, resampled to template space
     bold_mask_std
         BOLD series mask in template space
-    bold_aseg_std
-        FreeSurfer's ``aseg.mgz`` atlas, in template space at the BOLD resolution
-        (only if ``recon-all`` was run)
-    bold_aparc_std
-        FreeSurfer's ``aparc+aseg.mgz`` atlas, in template space at the BOLD resolution
-        (only if ``recon-all`` was run)
     template
         Template identifiers synchronized correspondingly to previously
         described outputs.
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.interfaces.utils import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     output_references = spaces.cached.get_spaces(nonstandard=False, dim=(3,))
@@ -327,13 +144,11 @@ preprocessed BOLD runs*: {tpl}.
         niu.IdentityInterface(
             fields=[
                 "anat2std_xfm",
-                "bold_aparc",
-                "bold_aseg",
                 "bold_mask",
                 "bold_split",
                 "fieldwarp",
                 "hmc_xforms",
-                "itk_bold_to_t1",
+                "bold2anat",
                 "name_source",
                 "templates",
             ]
@@ -420,9 +235,9 @@ preprocessed BOLD runs*: {tpl}.
         (inputnode, mask_std_tfm, [('bold_mask', 'input_image')]),
         (inputnode, gen_ref, [(('bold_split', _first), 'moving_image')]),
         (inputnode, merge_xforms, [
-            (('itk_bold_to_t1', _aslist), 'in2')]),
+            (('bold2anat', _aslist), 'in2')]),
         (inputnode, merge, [('name_source', 'header_source')]),
-        (inputnode, mask_merge_tfms, [(('itk_bold_to_t1', _aslist), 'in2')]),
+        (inputnode, mask_merge_tfms, [(('bold2anat', _aslist), 'in2')]),
         (inputnode, bold_to_std_transform, [('bold_split', 'input_image')]),
         (split_target, select_std, [('space', 'key')]),
         (select_std, merge_xforms, [('anat2std_xfm', 'in1')]),
@@ -445,7 +260,7 @@ preprocessed BOLD runs*: {tpl}.
         "bold_std_ref",
         "spatial_reference",
         "template",
-    ] + freesurfer * ["bold_aseg_std", "bold_aparc_std"]
+    ]
 
     poutputnode = pe.Node(
         niu.IdentityInterface(fields=output_names), name="poutputnode"
@@ -461,28 +276,6 @@ preprocessed BOLD runs*: {tpl}.
         (select_std, poutputnode, [('key', 'template')]),
     ])
     # fmt:on
-
-    if freesurfer:
-        # Sample the parcellation files to functional space
-        aseg_std_tfm = pe.Node(
-            ApplyTransforms(interpolation="MultiLabel"), name="aseg_std_tfm", mem_gb=1
-        )
-        aparc_std_tfm = pe.Node(
-            ApplyTransforms(interpolation="MultiLabel"), name="aparc_std_tfm", mem_gb=1
-        )
-
-        # fmt:off
-        workflow.connect([
-            (inputnode, aseg_std_tfm, [('bold_aseg', 'input_image')]),
-            (inputnode, aparc_std_tfm, [('bold_aparc', 'input_image')]),
-            (select_std, aseg_std_tfm, [('anat2std_xfm', 'transforms')]),
-            (select_std, aparc_std_tfm, [('anat2std_xfm', 'transforms')]),
-            (gen_ref, aseg_std_tfm, [('out_file', 'reference_image')]),
-            (gen_ref, aparc_std_tfm, [('out_file', 'reference_image')]),
-            (aseg_std_tfm, poutputnode, [('output_image', 'bold_aseg_std')]),
-            (aparc_std_tfm, poutputnode, [('output_image', 'bold_aparc_std')]),
-        ])
-        # fmt:on
 
     # Connect parametric outputs to a Join outputnode
     outputnode = pe.JoinNode(
@@ -566,10 +359,11 @@ def init_bold_preproc_trans_wf(
         Same as ``bold_ref``, but once the brain mask has been applied
 
     """
+    from bids.utils import listify
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.func.util import init_bold_reference_wf
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
@@ -611,7 +405,7 @@ the transforms to correct for head-motion"""
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
 
     # Generate a new BOLD reference
-    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads)
+    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
     bold_reference_wf.__desc__ = None  # Unset description to avoid second appearance
 
     # fmt:off
@@ -619,6 +413,8 @@ the transforms to correct for head-motion"""
         (inputnode, merge, [('name_source', 'header_source')]),
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+        (inputnode, bold_reference_wf, [('bold_mask', 'inputnode.bold_mask')]),
+        (inputnode, bold_transform, [(('hmc_xforms', listify), 'transforms')]),
         (merge, outputnode, [('out_file', 'bold')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref'),
@@ -649,30 +445,6 @@ the transforms to correct for head-motion"""
         ])
         # fmt:on
 
-    if use_fieldwarp:
-        merge_xforms = pe.Node(
-            niu.Merge(2),
-            name="merge_xforms",
-            run_without_submitting=True,
-            mem_gb=DEFAULT_MEMORY_MIN_GB,
-        )
-        # fmt:off
-        workflow.connect([
-            (inputnode, merge_xforms, [('fieldwarp', 'in1'),
-                                       ('hmc_xforms', 'in2')]),
-            (merge_xforms, bold_transform, [('out', 'transforms')]),
-        ])
-        # fmt:on
-    else:
-
-        def _aslist(val):
-            return [val]
-
-        # fmt:off
-        workflow.connect([
-            (inputnode, bold_transform, [(('hmc_xforms', _aslist), 'transforms')]),
-        ])
-        # fmt:on
     return workflow
 
 

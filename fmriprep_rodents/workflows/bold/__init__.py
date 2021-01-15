@@ -26,7 +26,6 @@ from .registration import (
 )
 from .resampling import (
     init_bold_std_trans_wf,
-    init_bold_surf_wf,
     init_bold_preproc_trans_wf,
 )
 
@@ -42,7 +41,6 @@ __all__ = [
     "init_bold_preproc_trans_wf",
     "init_bold_reg_wf",
     "init_bold_stc_wf",
-    "init_bold_surf_wf",
     "init_bold_t1_trans_wf",
     "init_bold_t2s_wf",
     "init_func_preproc_wf",
