@@ -1,7 +1,7 @@
 .PHONY: help docker-build
 .DEFAULT: help
 
-tag="fmriprep"
+tag="poldracklab/fmriprep-rodents"
 
 help:
 	@echo "Premade recipes"
@@ -14,4 +14,4 @@ docker-build:
 	docker build --rm -t $(tag) \
 	--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 	--build-arg VCS_REF=`git rev-parse --short HEAD` \
-	--build-arg VERSION=`python get_version.py` .
+	--build-arg VERSION=`python setup.py --version` .

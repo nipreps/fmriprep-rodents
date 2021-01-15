@@ -11,7 +11,7 @@ from .. import config
 @pytest.mark.skip(reason="Need to update config.toml")
 def test_config_spaces():
     """Check that all necessary spaces are recorded in the config."""
-    filename = Path(pkgrf("fmriprep_rodents", "data/tests/config.toml"))
+    filename = Path(pkgrf("fprodents", "data/tests/config.toml"))
     settings = loads(filename.read_text())
     for sectionname, configs in settings.items():
         if sectionname != "environment":
