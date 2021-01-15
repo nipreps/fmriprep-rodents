@@ -2,6 +2,9 @@
 =========================================================
 This tool adapts *fMRIPrep* to the use-case of rodent preclinical imaging -- 
 because MRI is some times done on species other than the *homo sapiens*.
+At the moment, only rats are fully-supported.
+However, the vision is to generalize the preprocessing to other rodents,
+starting with mice.
 
 .. image:: https://circleci.com/gh/poldracklab/fmriprep-rodents/tree/master.svg?style=shield
   :target: https://circleci.com/gh/poldracklab/fmriprep-rodents/tree/master
@@ -18,12 +21,18 @@ Currently, it is maintained by the NiPreps community.
 .. image:: https://github.com/oesteban/fmriprep/raw/38a63e9504ab67812b63813c5fe9af882109408e/docs/_static/fmriprep-workflow-all.png
 
 *fMRIPrep* is a functional magnetic resonance imaging (fMRI) data
-preprocessing pipeline that is designed to provide an easily accessible,
-state-of-the-art interface that is robust to variations in scan acquisition
-protocols and that requires minimal user input, while providing easily
-interpretable and comprehensive error and output reporting.
-It performs basic processing steps (coregistration, normalization, unwarping,
-noise component extraction, segmentation, skullstripping etc.) providing
+preprocessing pipeline.
+*fMRIPrep/rodents* adapts the original pipeline to work on rodents.
+The software is designed to provide an easily accessible interface,
+and the pipeline is robust to variations in scan acquisition
+protocols.
+This is possible with the adoption of `BIDS (Brain Imaging Data Structure)
+<https://bids-specification.readthedocs.io/>`__, which allows the tool to
+implement such a design.
+In practice, *fMRIPrep* (and *fMRIPrep/rodents*) require minimal user input and
+provide interpretable, comprehensive visual reports.
+*fMRIPrep/rodents* performs basic processing steps (coregistration, normalization, 
+unwarping, noise component extraction, segmentation, skullstripping etc.) providing
 outputs that can be easily submitted to a variety of group level analyses,
 including task-based or resting-state fMRI, graph theory measures, surface or
 volume-based statistics, etc.
@@ -36,26 +45,8 @@ volume-based statistics, etc.
    See the `workflows section of our documentation
    <https://fmriprep.readthedocs.io/en/latest/workflows.html>`__ for more details.
 
-The *fMRIPrep* pipeline uses a combination of tools from well-known software
-packages, including FSL_, ANTs_, FreeSurfer_ and AFNI_.
-This pipeline was designed to provide the best software implementation for each
-state of preprocessing, and will be updated as newer and better neuroimaging
-software become available.
-
-This tool allows you to easily do the following:
-
-- Take fMRI data from raw to fully preprocessed form.
-- Implement tools from different software packages.
-- Achieve optimal data processing quality by using the best tools available.
-- Generate preprocessing quality reports, with which the user can easily
-  identify outliers.
-- Receive verbose output concerning the stage of preprocessing for each
-  subject, including meaningful errors.
-- Automate and parallelize processing steps, which provides a significant
-  speed-up from typical linear, manual processing.
-
-More information and documentation can be found at
-https://fmriprep.readthedocs.io/
+The *fMRIPrep/rodents* pipeline uses a combination of tools from well-known neuroimaging
+packages, including FSL_, ANTs_, and AFNI_.
 
 Principles
 ----------
@@ -76,31 +67,18 @@ Principles
    the process and decide which subjects should be kept for the group level
    analysis.
 
-Limitations and reasons not to use *fMRIPrep*
----------------------------------------------
+Limitations
+-----------
+We count as limitations `those inherited from the upstream project, *fMRIPrep*
+<https://fmriprep.org/en/stable/#limitations-and-reasons-not-to-use-fmriprep>`__,
+in addition to:
 
-1. Very narrow :abbr:`FoV (field-of-view)` images oftentimes do not contain
-   enough information for standard image registration methods to work correctly.
-   Also, problems may arise when extracting the brain from these data.
-   Supporting these particular images is already a future line of the development
-   road-map.
-2. *fMRIPrep* may also underperform for particular populations (e.g., infants) and
-   non-human brains, although appropriate templates can be provided to overcome the
-   issue.
-3. The "EPInorm" approach is currently not supported, although we plan to implement
-   this feature (see `#620 <https://github.com/poldracklab/fmriprep/issues/620>`_).
-4. If you really want unlimited flexibility (which is obviously a double-edged sword).
-5. If you want students to suffer through implementing each step for didactic purposes,
-   or to learn shell-scripting or Python along the way.
-6. If you are trying to reproduce some *in-house* lab pipeline.
-
-(Reasons 4-6 were kindly provided by S. Nastase in his
-`open review <https://pubpeer.com/publications/6B3E024EAEBF2C80085FDF644C2085>`__
-of our `pre-print <https://doi.org/10.1101/306951>`__).
+1. Mice are not yet supported, although the infrastructure is all set for quickly
+   extending the support.
+   In particular, the processing of mice imaging will require the inclusion of a
+   suitable mice template on the `TemplateFlow <https://www.templateflow.org>`__ Archive.
 
 Acknowledgements
 ----------------
 Please acknowledge this work using the citation boilerplate that *fMRIPrep* includes
 in the visual report generated for every subject processed.
-For an illustration of how the citation boilerplate generally reads, please
-check `our documentation <https://fmriprep.readthedocs.io/en/latest/citing.html>`__.
