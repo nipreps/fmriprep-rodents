@@ -7,24 +7,17 @@ COPY docker/files/neurodebian.gpg /usr/local/etc/neurodebian.gpg
 # Prepare environment
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-                    curl \
+                    autoconf \
+                    build-essential \
                     bzip2 \
                     ca-certificates \
-                    xvfb \
-                    build-essential \
-                    autoconf \
+                    curl \
+                    git \
                     libtool \
+                    lsb-release \
                     pkg-config \
-                    git && \
-    curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
-    apt-get install -y --no-install-recommends \
-                    nodejs && \
+                    xvfb &&\
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Install latest pandoc
-RUN curl -o pandoc-2.2.2.1-1-amd64.deb -sSL "https://github.com/jgm/pandoc/releases/download/2.2.2.1/pandoc-2.2.2.1-1-amd64.deb" && \
-    dpkg -i pandoc-2.2.2.1-1-amd64.deb && \
-    rm pandoc-2.2.2.1-1-amd64.deb
 
 # Installing freesurfer
 RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/6.0.1/freesurfer-Linux-centos6_x86_64-stable-pub-v6.0.1.tar.gz | tar zxv --no-same-owner -C /opt \
@@ -75,7 +68,6 @@ RUN apt-get update && \
                     fsl-mni152-templates=5.0.7-2 \
                     afni=16.2.07~dfsg.1-5~nd16.04+1 \
                     convert3d \
-                    connectome-workbench=1.3.2-2~nd16.04+1 \
                     git-annex-standalone && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -99,14 +91,6 @@ RUN mkdir -p $ANTSPATH && \
     | tar -xzC $ANTSPATH --strip-components 1
 ENV PATH=$ANTSPATH:$PATH
 
-# Installing SVGO
-RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get install -y nodejs
-RUN npm install -g svgo
-
-# Installing bids-validator
-RUN npm install -g bids-validator@1.4.0
-
 # Installing and setting up ICA_AROMA
 RUN mkdir -p /opt/ICA-AROMA && \
   curl -sSL "https://github.com/oesteban/ICA-AROMA/archive/v0.4.5.tar.gz" \
@@ -128,15 +112,18 @@ ENV PATH="/usr/local/miniconda/bin:$PATH" \
     PYTHONNOUSERSITE=1
 
 # Installing precomputed python packages
-RUN conda install -y python=3.7 \
+RUN conda install -y -c anaconda -c conda-forge \
+                     python=3.7 \
                      graphviz=2.40 \
                      libxml2=2.9.8 \
                      libxslt=1.1.32 \
                      matplotlib=2.2 \
                      mkl-service \
                      mkl \
+                     nodejs \
                      numpy=1.19 \
                      pandas=0.23 \
+                     pandoc=2.11 \
                      pip=20.3 \
                      scikit-learn=0.19 \
                      scipy=1.5 \
@@ -156,6 +143,12 @@ ENV MKL_NUM_THREADS=1 \
 RUN useradd -m -s /bin/bash -G users fmriprep
 WORKDIR /home/fmriprep
 ENV HOME="/home/fmriprep"
+
+# Installing SVGO
+RUN npm install -g svgo
+
+# Installing bids-validator
+RUN npm install -g bids-validator@1.4.0
 
 # Precaching fonts, set 'Agg' as default backend for matplotlib
 RUN python -c "from matplotlib import font_manager" && \
