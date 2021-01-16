@@ -4,9 +4,8 @@ jobs:
   build:
     environment:
       TZ: "/usr/share/zoneinfo/America/Los_Angeles"
-      SCRATCH: "/scratch"
     machine:
-      image: circleci/classic:201711-01
+      image: ubuntu-2004:202010-01
     working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
@@ -61,8 +60,9 @@ jobs:
             export PY3=$(pyenv versions | grep '3\.' |
                          sed -e 's/.* 3\./3./' -e 's/ .*//')
             pyenv local $PY3
+            pip install "setuptools >= 40.8.0"
             # Get version, update files.
-            THISVERSION=$( python3 get_version.py )
+            THISVERSION=$( python3 setup.py --version )
             if [[ ${THISVERSION:0:1} == "0" ]] ; then
               echo "WARNING: latest git tag could not be found"
               echo "Please, make sure you fetch all tags from upstream with"
@@ -70,7 +70,7 @@ jobs:
               echo "them to your fork with ``git push origin --tags``"
             fi
             sed -i -E "s/(var version = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" docs/citing.rst
-            sed -i "s/title = {FMRIPrep}/title = {FMRIPrep ${CIRCLE_TAG:-$THISVERSION}}/" fmriprep_rodents/data/boilerplate.bib
+            sed -i "s/title = {FMRIPrep}/title = {FMRIPrep ${CIRCLE_TAG:-$THISVERSION}}/" fprodents/data/boilerplate.bib
             # Build docker image
             e=1 && for i in {1..5}; do
               docker build --rm \
@@ -221,10 +221,10 @@ jobs:
             - data-se-v0-
       - restore_cache:
           keys:
-            - nirodents-bold-se-anat-v00-{{ .Branch }}-{{ .Revision }}
-            - nirodents-bold-se-anat-v00-{{ .Branch }}
-            - nirodents-bold-se-anat-v00-master
-            - nirodents-bold-se-anat-v00-
+            - nirodents-bold-se-anat-v01-{{ .Branch }}-{{ .Revision }}
+            - nirodents-bold-se-anat-v01-{{ .Branch }}
+            - nirodents-bold-se-anat-v01-master
+            - nirodents-bold-se-anat-v01-
       - run:
           name: Run anatomical workflow on rodents
           no_output_timeout: 2h
@@ -244,7 +244,7 @@ jobs:
       - store_artifacts:
           path: /tmp/nirodents-bold-se/anatomical
       - save_cache:
-         key: nirodents-bold-se-anat-v00-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+         key: nirodents-bold-se-anat-v01-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
          paths:
             - /tmp/nirodents-bold-se/work
 
@@ -330,7 +330,7 @@ jobs:
   #           docker run -ti --rm=false \
   #             -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
   #             --entrypoint="pytest" poldracklab/fmriprep-rodents:latest \
-  #             /src/fmriprep/fmriprep_rodents -svx --doctest-modules
+  #             /src/fmriprep/fprodents -svx --doctest-modules
   #     - store_artifacts:
   #         path: /tmp/data/reports
 
@@ -478,13 +478,13 @@ jobs:
   #         name: Build fMRIPrep
   #         command: |
   #           pip install --user twine  # For use in checking distributions
-  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=$( python setup.py --version )
   #           THISVERSION=${THISVERSION%.dirty*}
   #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
   #           virtualenv --python=python build
   #           source build/bin/activate
   #           pip install --upgrade "pip>=19.1" numpy
-  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
+  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fprodents/VERSION
   #           python setup.py sdist
   #           pip wheel --no-deps -w dist/ .
   #     - store_artifacts:
@@ -492,7 +492,7 @@ jobs:
   #     - run:
   #         name: Check sdist distribution
   #         command: |
-  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=$( python setup.py --version )
   #           THISVERSION=${THISVERSION%.dirty*}
   #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
   #           twine check dist/fmriprep*.tar.gz
@@ -510,7 +510,7 @@ jobs:
   #     - run:
   #         name: Check wheel distribution
   #         command: |
-  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=$( python setup.py --version )
   #           THISVERSION=${THISVERSION%.dirty*}
   #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
   #           twine check dist/fmriprep*.whl
@@ -534,11 +534,11 @@ jobs:
   #     - run:
   #         name: Build fMRIPrep
   #         command: |
-  #           THISVERSION=$( python get_version.py )
+  #           THISVERSION=$( python setup.py --version )
   #           virtualenv --python=python build
   #           source build/bin/activate
   #           pip install --upgrade "pip>=19.1"
-  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fmriprep_rodents/VERSION
+  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fprodents/VERSION
   #           python setup.py sdist
   #           pip wheel --no-deps -w dist/ .
   #     - run:

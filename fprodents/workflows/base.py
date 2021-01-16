@@ -17,7 +17,7 @@ from nipype.interfaces import utility as niu
 
 from .. import config
 from ..interfaces import SubjectSummary, AboutSummary, DerivativesDataSink
-from .bold import init_func_preproc_wf
+from .bold.base import init_func_preproc_wf
 
 
 def init_fmriprep_wf():
@@ -35,8 +35,8 @@ def init_fmriprep_wf():
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.tests import mock_config
-            from fmriprep_rodents.workflows.base import init_fmriprep_wf
+            from fprodents.workflows.tests import mock_config
+            from fprodents.workflows.base import init_fmriprep_wf
             with mock_config():
                 wf = init_fmriprep_wf()
 
@@ -85,8 +85,8 @@ def init_single_subject_wf(subject_id):
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.tests import mock_config
-            from fmriprep_rodents.workflows.base import init_single_subject_wf
+            from fprodents.workflows.tests import mock_config
+            from fprodents.workflows.base import init_single_subject_wf
             with mock_config():
                 wf = init_single_subject_wf('01')
 

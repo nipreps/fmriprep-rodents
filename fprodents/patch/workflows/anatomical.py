@@ -507,7 +507,7 @@ def init_anat_norm_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.patch.workflows.anatomical import init_anat_norm_wf
+            from fprodents.patch.workflows.anatomical import init_anat_norm_wf
             wf = init_anat_norm_wf(
                 debug=False,
                 omp_nthreads=1,

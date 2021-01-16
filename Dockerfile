@@ -140,6 +140,7 @@ RUN conda install -y python=3.7 \
                      pip=20.3 \
                      scikit-learn=0.19 \
                      scipy=1.5 \
+                     setuptools=51.1 \
                      traits=4.6 \
                      zlib; sync && \
     chmod -R a+rX /usr/local/miniconda; sync && \
@@ -175,8 +176,8 @@ RUN pip install --no-cache-dir "$( grep templateflow fmriprep-setup.cfg | xargs 
 COPY . /src/fmriprep
 ARG VERSION
 # Force static versioning within container
-RUN echo "${VERSION}" > /src/fmriprep/fmriprep_rodents/VERSION && \
-    echo "include fmriprep_rodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
+RUN echo "${VERSION}" > /src/fmriprep/fprodents/VERSION && \
+    echo "include fprodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
     pip install --no-cache-dir "/src/fmriprep[all]"
 
 RUN find $HOME -type d -exec chmod go=u {} + && \
@@ -187,7 +188,7 @@ ENV IS_DOCKER_8395080871=1
 
 RUN ldconfig
 WORKDIR /tmp/
-ENTRYPOINT ["/usr/local/miniconda/bin/fmriprep-rodents"]
+ENTRYPOINT ["/usr/local/miniconda/bin/fprodents"]
 
 ARG BUILD_DATE
 ARG VCS_REF
