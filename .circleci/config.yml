@@ -221,10 +221,10 @@ jobs:
             - data-se-v0-
       - restore_cache:
           keys:
-            - nirodents-bold-se-anat-v00-{{ .Branch }}-{{ .Revision }}
-            - nirodents-bold-se-anat-v00-{{ .Branch }}
-            - nirodents-bold-se-anat-v00-master
-            - nirodents-bold-se-anat-v00-
+            - nirodents-bold-se-anat-v01-{{ .Branch }}-{{ .Revision }}
+            - nirodents-bold-se-anat-v01-{{ .Branch }}
+            - nirodents-bold-se-anat-v01-master
+            - nirodents-bold-se-anat-v01-
       - run:
           name: Run anatomical workflow on rodents
           no_output_timeout: 2h
@@ -244,7 +244,7 @@ jobs:
       - store_artifacts:
           path: /tmp/nirodents-bold-se/anatomical
       - save_cache:
-         key: nirodents-bold-se-anat-v00-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+         key: nirodents-bold-se-anat-v01-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
          paths:
             - /tmp/nirodents-bold-se/work
 

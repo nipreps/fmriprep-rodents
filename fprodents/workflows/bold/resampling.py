@@ -42,7 +42,7 @@ def init_bold_std_trans_wf(
             :simple_form: yes
 
             from niworkflows.utils.spaces import SpatialReferences
-            from fprodents.workflows.bold import init_bold_std_trans_wf
+            from fprodents.workflows.bold.resampling import init_bold_std_trans_wf
             wf = init_bold_std_trans_wf(
                 mem_gb=3,
                 omp_nthreads=1,
@@ -311,7 +311,7 @@ def init_bold_preproc_trans_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fprodents.workflows.bold import init_bold_preproc_trans_wf
+            from fprodents.workflows.bold.resampling import init_bold_preproc_trans_wf
             wf = init_bold_preproc_trans_wf(mem_gb=3, omp_nthreads=1)
 
     Parameters
@@ -461,7 +461,7 @@ def init_bold_grayords_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fprodents.workflows.bold import init_bold_grayords_wf
+            from fprodents.workflows.bold.resampling import init_bold_grayords_wf
             wf = init_bold_grayords_wf(mem_gb=0.1, grayord_density='91k')
 
     Parameters

@@ -17,7 +17,7 @@ from nipype.interfaces import utility as niu
 
 from .. import config
 from ..interfaces import SubjectSummary, AboutSummary, DerivativesDataSink
-from .bold import init_func_preproc_wf
+from .bold.base import init_func_preproc_wf
 
 
 def init_fmriprep_wf():
