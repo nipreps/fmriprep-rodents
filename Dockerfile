@@ -140,6 +140,7 @@ RUN conda install -y python=3.7 \
                      pip=20.3 \
                      scikit-learn=0.19 \
                      scipy=1.5 \
+                     setuptools=51.1 \
                      traits=4.6 \
                      zlib; sync && \
     chmod -R a+rX /usr/local/miniconda; sync && \
