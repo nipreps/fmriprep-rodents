@@ -4,9 +4,8 @@ jobs:
   build:
     environment:
       TZ: "/usr/share/zoneinfo/America/Los_Angeles"
-      SCRATCH: "/scratch"
     machine:
-      image: circleci/classic:201711-01
+      image: ubuntu-2004:202010-01
     working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
@@ -61,6 +60,7 @@ jobs:
             export PY3=$(pyenv versions | grep '3\.' |
                          sed -e 's/.* 3\./3./' -e 's/ .*//')
             pyenv local $PY3
+            pip install "setuptools >= 40.8.0"
             # Get version, update files.
             THISVERSION=$( python3 setup.py --version )
             if [[ ${THISVERSION:0:1} == "0" ]] ; then
