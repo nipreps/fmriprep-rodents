@@ -28,7 +28,7 @@ def init_bold_hmc_wf(mem_gb, omp_nthreads, name="bold_hmc_wf"):
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold import init_bold_hmc_wf
+            from fprodents.workflows.bold.hmc import init_bold_hmc_wf
             wf = init_bold_hmc_wf(
                 mem_gb=3,
                 omp_nthreads=1)

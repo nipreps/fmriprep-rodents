@@ -46,9 +46,9 @@ def init_func_preproc_wf(bold_file):
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.tests import mock_config
-            from fmriprep_rodents import config
-            from fmriprep_rodents.workflows.bold.base import init_func_preproc_wf
+            from fprodents.workflows.tests import mock_config
+            from fprodents import config
+            from fprodents.workflows.bold.base import init_func_preproc_wf
             with mock_config():
                 bold_file = config.execution.bids_dir / 'sub-01' / 'func' \
                     / 'sub-01_task-mixedgamblestask_run-01_bold.nii.gz'
@@ -126,17 +126,16 @@ def init_func_preproc_wf(bold_file):
     See Also
     --------
 
-    * :py:func:`~niworkflows.func.util.init_bold_reference_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.stc.init_bold_stc_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.hmc.init_bold_hmc_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.t2s.init_bold_t2s_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.registration.init_bold_t1_trans_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.registration.init_bold_reg_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.confounds.init_bold_confounds_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.confounds.init_ica_aroma_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.resampling.init_bold_std_trans_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.resampling.init_bold_preproc_trans_wf`
-    * :py:func:`~fmriprep_rodents.workflows.bold.resampling.init_bold_surf_wf`
+    * :py:func:`~fprodents.workflows.bold.stc.init_bold_stc_wf`
+    * :py:func:`~fprodents.workflows.bold.hmc.init_bold_hmc_wf`
+    * :py:func:`~fprodents.workflows.bold.t2s.init_bold_t2s_wf`
+    * :py:func:`~fprodents.workflows.bold.registration.init_bold_t1_trans_wf`
+    * :py:func:`~fprodents.workflows.bold.registration.init_bold_reg_wf`
+    * :py:func:`~fprodents.workflows.bold.confounds.init_bold_confounds_wf`
+    * :py:func:`~fprodents.workflows.bold.confounds.init_ica_aroma_wf`
+    * :py:func:`~fprodents.workflows.bold.resampling.init_bold_std_trans_wf`
+    * :py:func:`~fprodents.workflows.bold.resampling.init_bold_preproc_trans_wf`
+    * :py:func:`~fprodents.workflows.bold.resampling.init_bold_surf_wf`
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow

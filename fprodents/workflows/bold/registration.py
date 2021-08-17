@@ -38,7 +38,7 @@ def init_bold_reg_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold.registration import init_bold_reg_wf
+            from fprodents.workflows.bold.registration import init_bold_reg_wf
             wf = init_bold_reg_wf(mem_gb=3,
                                   omp_nthreads=1,
                                   bold2t1w_dof=9,
@@ -184,7 +184,7 @@ def init_bold_t1_trans_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold.registration import init_bold_t1_trans_wf
+            from fprodents.workflows.bold.registration import init_bold_t1_trans_wf
             wf = init_bold_t1_trans_wf(mem_gb=3,
                                        omp_nthreads=1)
 

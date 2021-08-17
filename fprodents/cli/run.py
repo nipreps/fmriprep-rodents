@@ -145,8 +145,8 @@ def main():
             config.execution.participant_label,
             config.execution.output_dir,
             config.execution.run_uuid,
-            config=pkgrf("fmriprep_rodents", "data/reports-spec.yml"),
-            packagename="fmriprep_rodents",
+            config=pkgrf("fprodents", "data/reports-spec.yml"),
+            packagename="fprodents",
         )
         write_derivative_description(
             config.execution.bids_dir, config.execution.output_dir / "fmriprep"
@@ -162,6 +162,6 @@ def main():
 
 if __name__ == "__main__":
     raise RuntimeError(
-        "fmriprep_rodents/cli/run.py should not be run directly;\n"
-        "Please `pip install` fmriprep-rodents and use the `fmriprep_rodents` command"
+        "fprodents/cli/run.py should not be run directly;\n"
+        "Please `pip install` fmriprep-rodents and use the `fprodents` command"
     )
