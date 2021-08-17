@@ -38,7 +38,7 @@ def init_bold_reg_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold.registration import init_bold_reg_wf
+            from fprodents.workflows.bold.registration import init_bold_reg_wf
             wf = init_bold_reg_wf(mem_gb=3,
                                   omp_nthreads=1,
                                   bold2t1w_dof=9,
@@ -83,7 +83,7 @@ def init_bold_reg_wf(
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.registration import FLIRTRPT
+    from niworkflows.interfaces.reportlets.registration import FLIRTRPT
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
@@ -184,7 +184,7 @@ def init_bold_t1_trans_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold.registration import init_bold_t1_trans_wf
+            from fprodents.workflows.bold.registration import init_bold_t1_trans_wf
             wf = init_bold_t1_trans_wf(mem_gb=3,
                                        omp_nthreads=1)
 
@@ -240,9 +240,8 @@ def init_bold_t1_trans_wf(
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
+    from niworkflows.interfaces.nibabel import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
-    from niworkflows.interfaces.utils import GenerateSamplingReference
-    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     inputnode = pe.Node(
@@ -275,6 +274,10 @@ def init_bold_t1_trans_wf(
         ApplyTransforms(interpolation="MultiLabel"), name="mask_t1w_tfm", mem_gb=0.1
     )
 
+    bold_ref_t1w_tfm = pe.Node(
+        ApplyTransforms(interpolation="MultiLabel"), name="bold_ref_t1w_tfm", mem_gb=0.1
+    )
+
     # fmt:off
     workflow.connect([
         (inputnode, gen_ref, [('ref_bold_brain', 'moving_image'),
@@ -284,6 +287,10 @@ def init_bold_t1_trans_wf(
         (gen_ref, mask_t1w_tfm, [('out_file', 'reference_image')]),
         (inputnode, mask_t1w_tfm, [('bold2anat', 'transforms')]),
         (mask_t1w_tfm, outputnode, [('output_image', 'bold_mask_t1')]),
+        (inputnode, bold_ref_t1w_tfm, [('ref_bold_brain', 'input_image')]),
+        (gen_ref, bold_ref_t1w_tfm, [('out_file', 'reference_image')]),
+        (inputnode, bold_ref_t1w_tfm, [('bold2anat', 'transforms')]),
+        (bold_ref_t1w_tfm, outputnode, [('output_image', 'bold_t1_ref')]),
     ])
     # fmt:on
 
@@ -298,9 +305,6 @@ def init_bold_t1_trans_wf(
 
     # merge 3D volumes into 4D timeseries
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb)
-
-    # Generate a reference on the target T1w space
-    gen_final_ref = init_bold_reference_wf(omp_nthreads, pre_mask=True)
 
     if not multiecho:
         # Merge transforms placing the head motion correction last
@@ -348,10 +352,7 @@ def init_bold_t1_trans_wf(
         (inputnode, merge, [('name_source', 'header_source')]),
         (gen_ref, bold_to_t1w_transform, [('out_file', 'reference_image')]),
         (bold_to_t1w_transform, merge, [('out_files', 'in_files')]),
-        (merge, gen_final_ref, [('out_file', 'inputnode.bold_file')]),
-        (mask_t1w_tfm, gen_final_ref, [('output_image', 'inputnode.bold_mask')]),
         (merge, outputnode, [('out_file', 'bold_t1')]),
-        (gen_final_ref, outputnode, [('outputnode.ref_image', 'bold_t1_ref')]),
     ])
     # fmt:on
 

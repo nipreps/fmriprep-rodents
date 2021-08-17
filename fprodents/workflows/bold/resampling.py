@@ -42,7 +42,7 @@ def init_bold_std_trans_wf(
             :simple_form: yes
 
             from niworkflows.utils.spaces import SpatialReferences
-            from fmriprep_rodents.workflows.bold import init_bold_std_trans_wf
+            from fprodents.workflows.bold.resampling import init_bold_std_trans_wf
             wf = init_bold_std_trans_wf(
                 mem_gb=3,
                 omp_nthreads=1,
@@ -113,10 +113,9 @@ def init_bold_std_trans_wf(
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.utility import KeySelect
-    from niworkflows.interfaces.utils import GenerateSamplingReference
+    from niworkflows.interfaces.nibabel import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
-    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     output_references = spaces.cached.get_spaces(nonstandard=False, dim=(3,))
@@ -192,6 +191,10 @@ preprocessed BOLD runs*: {tpl}.
         ApplyTransforms(interpolation="MultiLabel"), name="mask_std_tfm", mem_gb=1
     )
 
+    ref_std_tfm = pe.Node(
+        ApplyTransforms(interpolation="LanczosWindowedSinc"), name="ref_std_tfm", mem_gb=1
+    )
+
     # Write corrected file in the designated output dir
     mask_merge_tfms = pe.Node(
         niu.Merge(2),
@@ -224,7 +227,7 @@ preprocessed BOLD runs*: {tpl}.
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
 
     # Generate a reference on the target standard space
-    gen_final_ref = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
+    # gen_final_ref = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
 
     # fmt:off
     workflow.connect([
@@ -233,6 +236,7 @@ preprocessed BOLD runs*: {tpl}.
         (inputnode, select_std, [('anat2std_xfm', 'anat2std_xfm'),
                                  ('templates', 'keys')]),
         (inputnode, mask_std_tfm, [('bold_mask', 'input_image')]),
+        (inputnode, ref_std_tfm, [('bold_mask', 'input_image')]),
         (inputnode, gen_ref, [(('bold_split', _first), 'moving_image')]),
         (inputnode, merge_xforms, [
             (('bold2anat', _aslist), 'in2')]),
@@ -248,9 +252,9 @@ preprocessed BOLD runs*: {tpl}.
         (gen_ref, bold_to_std_transform, [('out_file', 'reference_image')]),
         (gen_ref, mask_std_tfm, [('out_file', 'reference_image')]),
         (mask_merge_tfms, mask_std_tfm, [('out', 'transforms')]),
-        (mask_std_tfm, gen_final_ref, [('output_image', 'inputnode.bold_mask')]),
+        (gen_ref, ref_std_tfm, [('out_file', 'reference_image')]),
+        (mask_merge_tfms, ref_std_tfm, [('out', 'transforms')]),
         (bold_to_std_transform, merge, [('out_files', 'in_files')]),
-        (merge, gen_final_ref, [('out_file', 'inputnode.bold_file')]),
     ])
     # fmt:on
 
@@ -271,7 +275,7 @@ preprocessed BOLD runs*: {tpl}.
         (iterablesource, poutputnode, [
             (('std_target', format_reference), 'spatial_reference')]),
         (merge, poutputnode, [('out_file', 'bold_std')]),
-        (gen_final_ref, poutputnode, [('outputnode.ref_image', 'bold_std_ref')]),
+        (ref_std_tfm, poutputnode, [('output_image', 'bold_std_ref')]),
         (mask_std_tfm, poutputnode, [('output_image', 'bold_mask_std')]),
         (select_std, poutputnode, [('key', 'template')]),
     ])
@@ -311,7 +315,7 @@ def init_bold_preproc_trans_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold import init_bold_preproc_trans_wf
+            from fprodents.workflows.bold.resampling import init_bold_preproc_trans_wf
             wf = init_bold_preproc_trans_wf(mem_gb=3, omp_nthreads=1)
 
     Parameters
@@ -339,6 +343,8 @@ def init_bold_preproc_trans_wf(
         Individual 3D volumes, not motion corrected
     bold_mask
         Skull-stripping mask of reference image
+    bold_ref
+        BOLD reference image: an average-like 3D image of the time-series
     name_source
         BOLD series NIfTI file
         Used to recover original information lost during processing
@@ -351,19 +357,12 @@ def init_bold_preproc_trans_wf(
     -------
     bold
         BOLD series, resampled in native space, including all preprocessing
-    bold_mask
-        BOLD series mask calculated with the new time-series
-    bold_ref
-        BOLD reference image: an average-like 3D image of the time-series
-    bold_ref_brain
-        Same as ``bold_ref``, but once the brain mask has been applied
 
     """
     from bids.utils import listify
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.nilearn import Merge
-    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
@@ -383,7 +382,7 @@ the transforms to correct for head-motion"""
 
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=["name_source", "bold_file", "bold_mask", "hmc_xforms", "fieldwarp"]
+            fields=["name_source", "bold_file", "bold_mask", "bold_ref", "hmc_xforms", "fieldwarp"]
         ),
         name="inputnode",
     )
@@ -404,22 +403,12 @@ the transforms to correct for head-motion"""
 
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
 
-    # Generate a new BOLD reference
-    bold_reference_wf = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
-    bold_reference_wf.__desc__ = None  # Unset description to avoid second appearance
-
     # fmt:off
     workflow.connect([
         (inputnode, merge, [('name_source', 'header_source')]),
         (bold_transform, merge, [('out_files', 'in_files')]),
-        (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
-        (inputnode, bold_reference_wf, [('bold_mask', 'inputnode.bold_mask')]),
         (inputnode, bold_transform, [(('hmc_xforms', listify), 'transforms')]),
         (merge, outputnode, [('out_file', 'bold')]),
-        (bold_reference_wf, outputnode, [
-            ('outputnode.ref_image', 'bold_ref'),
-            ('outputnode.ref_image_brain', 'bold_ref_brain'),
-            ('outputnode.bold_mask', 'bold_mask')]),
     ])
     # fmt:on
 
@@ -461,7 +450,7 @@ def init_bold_grayords_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold import init_bold_grayords_wf
+            from fprodents.workflows.bold.resampling import init_bold_grayords_wf
             wf = init_bold_grayords_wf(mem_gb=0.1, grayord_density='91k')
 
     Parameters
@@ -647,7 +636,7 @@ def _split_spec(in_target):
 
 
 def _select_template(template):
-    from fmriprep_rodents.patch.utils import get_template_specs
+    from fprodents.patch.utils import get_template_specs
 
     template, specs = template
     template = template.split(":")[0]  # Drop any cohort modifier if present

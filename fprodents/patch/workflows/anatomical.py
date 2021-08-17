@@ -5,7 +5,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import fsl, utility as niu
 from nipype.interfaces.ants.base import Info as ANTsInfo
 from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
-from niworkflows.interfaces.images import ValidateImage
+from niworkflows.interfaces.header import ValidateImage
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.utility import KeySelect
@@ -507,7 +507,7 @@ def init_anat_norm_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.patch.workflows.anatomical import init_anat_norm_wf
+            from fprodents.patch.workflows.anatomical import init_anat_norm_wf
             wf = init_anat_norm_wf(
                 debug=False,
                 omp_nthreads=1,
@@ -743,8 +743,10 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
     template
         Template space and specifications
     """
-    from niworkflows.interfaces import SimpleBeforeAfter
-    from niworkflows.interfaces.masks import ROIsPlot
+    from niworkflows.interfaces.reportlets.registration import (
+        SimpleBeforeAfterRPT as SimpleBeforeAfter
+    )
+    from niworkflows.interfaces.reportlets.masks import ROIsPlot
     from smriprep.interfaces import DerivativesDataSink
 
     workflow = Workflow(name=name)
@@ -1053,7 +1055,7 @@ def init_anat_derivatives_wf(
     # Write derivatives in standard spaces specified by --output-spaces
     if getattr(spaces, "_cached") is not None and spaces.cached.references:
         from niworkflows.interfaces.space import SpaceDataSource
-        from niworkflows.interfaces.utils import GenerateSamplingReference
+        from niworkflows.interfaces.nibabel import GenerateSamplingReference
         from niworkflows.interfaces.fixes import (
             FixHeaderApplyTransforms as ApplyTransforms,
         )

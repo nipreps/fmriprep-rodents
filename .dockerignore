@@ -12,6 +12,9 @@ fmriprep.egg-info/**/*
 fmriprep.egg-info
 .eggs/**/*
 .eggs
+.maint
+.maint/**/*
+Makefile
 
 # housekeeping tools
 get_version.py
@@ -26,17 +29,22 @@ src/
 .gitignore
 .git/**/*
 .git
-
-# other
-work/**/*
-work
-out/**/*
-out/
+.mailmap
 
 # CI, etc.
 .circleci
 .circleci/**/*
+.github
+.github/**/*
 .zenodo.json
 .travis.yml
 .readthedocs.yml
+.versions.json
 CONTRIBUTING.md
+
+# other
+.DS_Store
+work/**/*
+work
+out/**/*
+out/

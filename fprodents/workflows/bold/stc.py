@@ -28,7 +28,7 @@ def init_bold_stc_wf(metadata, name="bold_stc_wf"):
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep_rodents.workflows.bold import init_bold_stc_wf
+            from fprodents.workflows.bold.stc import init_bold_stc_wf
             wf = init_bold_stc_wf(
                 metadata={"RepetitionTime": 2.0,
                           "SliceTiming": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
@@ -55,7 +55,7 @@ def init_bold_stc_wf(metadata, name="bold_stc_wf"):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.utils import CopyXForm
+    from niworkflows.interfaces.header import CopyXForm
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\

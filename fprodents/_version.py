@@ -43,7 +43,7 @@ def get_config():
     cfg.style = "pep440"
     cfg.tag_prefix = ""
     cfg.parentdir_prefix = ""
-    cfg.versionfile_source = "fmriprep_rodents/_version.py"
+    cfg.versionfile_source = "fprodents/_version.py"
     cfg.verbose = False
     return cfg
 

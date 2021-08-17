@@ -5,9 +5,9 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-from niworkflows.interfaces.images import ValidateImage
-from niworkflows.interfaces.masks import SimpleShowMaskRPT
-from niworkflows.interfaces.registration import EstimateReferenceImage
+from niworkflows.interfaces.header import ValidateImage
+from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
+from niworkflows.interfaces.nibabel import GenerateSamplingReference
 from niworkflows.utils.connections import listify
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 
@@ -134,8 +134,8 @@ methodology of *fMRIPrep*.
     )
 
     gen_ref = pe.Node(
-        EstimateReferenceImage(multiecho=multiecho), name="gen_ref", mem_gb=1
-    )  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
+        GenerateSamplingReference(),
+        name="gen_ref", mem_gb=1)  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
 
     calc_dummy_scans = pe.Node(
         niu.Function(function=_pass_dummy_scans, output_names=["skip_vols_num"]),

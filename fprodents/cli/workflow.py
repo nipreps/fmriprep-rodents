@@ -59,7 +59,7 @@ def build_workflow(config_file, retval):
             subject_list,
             config.execution.output_dir,
             config.execution.run_uuid,
-            config=pkgrf("fmriprep_rodents", "data/reports-spec.yml"),
+            config=pkgrf("fprodents", "data/reports-spec.yml"),
             packagename="fmriprep-rodents",
         )
         return retval
@@ -146,7 +146,7 @@ def build_boilerplate(config_file, workflow):
             "pandoc",
             "-s",
             "--bibliography",
-            pkgrf("fmriprep_rodents", "data/boilerplate.bib"),
+            pkgrf("fprodents", "data/boilerplate.bib"),
             "--filter",
             "pandoc-citeproc",
             "--metadata",
@@ -171,7 +171,7 @@ def build_boilerplate(config_file, workflow):
             "pandoc",
             "-s",
             "--bibliography",
-            pkgrf("fmriprep_rodents", "data/boilerplate.bib"),
+            pkgrf("fprodents", "data/boilerplate.bib"),
             "--natbib",
             str(citation_files["md"]),
             "-o",
@@ -188,5 +188,5 @@ def build_boilerplate(config_file, workflow):
             )
         else:
             copyfile(
-                pkgrf("fmriprep_rodents", "data/boilerplate.bib"), citation_files["bib"]
+                pkgrf("fprodents", "data/boilerplate.bib"), citation_files["bib"]
             )
