@@ -157,6 +157,9 @@ RUN useradd -m -s /bin/bash -G users fmriprep
 WORKDIR /home/fmriprep
 ENV HOME="/home/fmriprep"
 
+# Install feature branch of niworkflows for rodents
+RUN pip install --no-cache-dir git+https://github.com/nipreps/niworkflows.git@feat/infants-rodents
+
 # Precaching fonts, set 'Agg' as default backend for matplotlib
 RUN python -c "from matplotlib import font_manager" && \
     sed -i 's/\(backend *: \).*$/\1Agg/g' $( python -c "import matplotlib; print(matplotlib.matplotlib_fname())" )
