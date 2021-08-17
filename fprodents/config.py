@@ -8,16 +8,16 @@ Settings are passed across processes via filesystem, and a copy of the settings 
 each run and subject is left under
 ``<output_dir>/sub-<participant_id>/log/<run_unique_id>/fmriprep.toml``.
 Settings are stored using :abbr:`ToML (Tom's Markup Language)`.
-The module has a :py:func:`~fmriprep_rodents.config.to_filename` function to allow writting out
+The module has a :py:func:`~fprodents.config.to_filename` function to allow writting out
 the settings to hard disk in *ToML* format, which looks like:
 
-.. literalinclude:: ../fmriprep_rodents/data/tests/config.toml
+.. literalinclude:: ../fprodents/data/tests/config.toml
    :language: toml
    :name: fmriprep.toml
    :caption: **Example file representation of fMRIPrep settings**.
 
 This config file is used to pass the settings across processes,
-using the :py:func:`~fmriprep_rodents.config.load` function.
+using the :py:func:`~fprodents.config.load` function.
 
 Configuration sections
 ----------------------
@@ -37,7 +37,7 @@ graph is built across processes.
 
 .. code-block:: Python
 
-    from fmriprep_rodents import config
+    from fprodents import config
     config_file = config.execution.work_dir / '.fmriprep.toml'
     config.to_filename(config_file)
     # Call build_workflow(config_file, retval) in a subprocess
