@@ -382,7 +382,9 @@ def init_bold_preproc_report_wf(mem_gb, reportlets_dir, name="bold_preproc_repor
     """
     from nipype.algorithms.confounds import TSNR
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces import SimpleBeforeAfter
+    from niworkflows.interfaces.reportlets.registration import (
+        SimpleBeforeAfterRPT as SimpleBeforeAfter
+    )
     from ...interfaces import DerivativesDataSink
 
     workflow = Workflow(name=name)
