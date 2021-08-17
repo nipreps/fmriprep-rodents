@@ -7,24 +7,17 @@ COPY docker/files/neurodebian.gpg /usr/local/etc/neurodebian.gpg
 # Prepare environment
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-                    curl \
+                    autoconf \
+                    build-essential \
                     bzip2 \
                     ca-certificates \
-                    xvfb \
-                    build-essential \
-                    autoconf \
+                    curl \
+                    git \
                     libtool \
+                    lsb-release \
                     pkg-config \
-                    git && \
-    curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
-    apt-get install -y --no-install-recommends \
-                    nodejs && \
+                    xvfb &&\
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Install latest pandoc
-RUN curl -o pandoc-2.2.2.1-1-amd64.deb -sSL "https://github.com/jgm/pandoc/releases/download/2.2.2.1/pandoc-2.2.2.1-1-amd64.deb" && \
-    dpkg -i pandoc-2.2.2.1-1-amd64.deb && \
-    rm pandoc-2.2.2.1-1-amd64.deb
 
 # Installing freesurfer
 RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/6.0.1/freesurfer-Linux-centos6_x86_64-stable-pub-v6.0.1.tar.gz | tar zxv --no-same-owner -C /opt \
@@ -75,7 +68,6 @@ RUN apt-get update && \
                     fsl-mni152-templates=5.0.7-2 \
                     afni=16.2.07~dfsg.1-5~nd16.04+1 \
                     convert3d \
-                    connectome-workbench=1.3.2-2~nd16.04+1 \
                     git-annex-standalone && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -92,20 +84,13 @@ ENV FSLDIR="/usr/share/fsl/5.0" \
     AFNI_PLUGINPATH="/usr/lib/afni/plugins"
 ENV PATH="/usr/lib/fsl/5.0:/usr/lib/afni/bin:$PATH"
 
-# Installing ANTs 2.2.0 (NeuroDocker build)
+# Installing ANTs 2.3.3 (NeuroDocker build)
+# Note: the URL says 2.3.4 but it is actually 2.3.3
 ENV ANTSPATH=/usr/lib/ants
 RUN mkdir -p $ANTSPATH && \
-    curl -sSL "https://dl.dropbox.com/s/2f4sui1z6lcgyek/ANTs-Linux-centos5_x86_64-v2.2.0-0740f91.tar.gz" \
+    curl -sSL "https://dl.dropbox.com/s/gwf51ykkk5bifyj/ants-Linux-centos6_x86_64-v2.3.4.tar.gz" \
     | tar -xzC $ANTSPATH --strip-components 1
 ENV PATH=$ANTSPATH:$PATH
-
-# Installing SVGO
-RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get install -y nodejs
-RUN npm install -g svgo
-
-# Installing bids-validator
-RUN npm install -g bids-validator@1.4.0
 
 # Installing and setting up ICA_AROMA
 RUN mkdir -p /opt/ICA-AROMA && \
@@ -128,18 +113,22 @@ ENV PATH="/usr/local/miniconda/bin:$PATH" \
     PYTHONNOUSERSITE=1
 
 # Installing precomputed python packages
-RUN conda install -y python=3.7 \
+RUN conda install -y -c anaconda -c conda-forge \
+                     python=3.7 \
                      graphviz=2.40 \
                      libxml2=2.9.8 \
                      libxslt=1.1.32 \
                      matplotlib=2.2 \
                      mkl-service \
                      mkl \
+                     nodejs \
                      numpy=1.19 \
                      pandas=0.23 \
+                     pandoc=2.11 \
                      pip=20.3 \
                      scikit-learn=0.19 \
                      scipy=1.5 \
+                     setuptools=51.1 \
                      traits=4.6 \
                      zlib; sync && \
     chmod -R a+rX /usr/local/miniconda; sync && \
@@ -157,8 +146,12 @@ RUN useradd -m -s /bin/bash -G users fmriprep
 WORKDIR /home/fmriprep
 ENV HOME="/home/fmriprep"
 
-# Install feature branch of niworkflows for rodents
-RUN pip install --no-cache-dir git+https://github.com/nipreps/niworkflows.git@feat/infants-rodents
+
+# Installing SVGO
+RUN npm install -g svgo
+
+# Installing bids-validator
+RUN npm install -g bids-validator@1.4.0
 
 # Precaching fonts, set 'Agg' as default backend for matplotlib
 RUN python -c "from matplotlib import font_manager" && \
@@ -178,8 +171,8 @@ RUN pip install --no-cache-dir "$( grep templateflow fmriprep-setup.cfg | xargs 
 COPY . /src/fmriprep
 ARG VERSION
 # Force static versioning within container
-RUN echo "${VERSION}" > /src/fmriprep/fmriprep_rodents/VERSION && \
-    echo "include fmriprep_rodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
+RUN echo "${VERSION}" > /src/fmriprep/fprodents/VERSION && \
+    echo "include fprodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
     pip install --no-cache-dir "/src/fmriprep[all]"
 
 RUN find $HOME -type d -exec chmod go=u {} + && \
@@ -190,7 +183,7 @@ ENV IS_DOCKER_8395080871=1
 
 RUN ldconfig
 WORKDIR /tmp/
-ENTRYPOINT ["/usr/local/miniconda/bin/fmriprep-rodents"]
+ENTRYPOINT ["/usr/local/miniconda/bin/fprodents"]
 
 ARG BUILD_DATE
 ARG VCS_REF
