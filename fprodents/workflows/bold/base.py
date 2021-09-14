@@ -198,11 +198,10 @@ def init_func_preproc_wf(bold_file):
         )
     config.loggers.workflow.info(sbref_msg)
 
-    # Short circuits: (True and True and (False or 'TooShort')) == 'TooShort'
+    # Check whether STC must/can be run
     run_stc = (
         bool(metadata.get("SliceTiming"))
-        and "slicetiming" not in config.workflow.ignore
-        and (_get_series_len(ref_file) > 4 or "TooShort")
+        and 'slicetiming' not in config.workflow.ignore
     )
 
     # Build workflow
@@ -372,18 +371,15 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     bold_bold_trans_wf.inputs.inputnode.name_source = ref_file
 
     # SLICE-TIME CORRECTION (or bypass) #############################################
-    if run_stc is True:  # bool('TooShort') == True, so check True explicitly
+    if run_stc:
         bold_stc_wf = init_bold_stc_wf(name="bold_stc_wf", metadata=metadata)
-        workflow.connect(
-            [
-                (
-                    bold_reference_wf,
-                    bold_stc_wf,
-                    [("outputnode.skip_vols", "inputnode.skip_vols")],
-                ),
-                (bold_stc_wf, boldbuffer, [("outputnode.stc_file", "bold_file")]),
-            ]
-        )
+        # fmt:off
+        workflow.connect([
+            (bold_reference_wf, bold_stc_wf, [
+                ("outputnode.skip_vols", "inputnode.skip_vols")]),
+            (bold_stc_wf, boldbuffer, [("outputnode.stc_file", "bold_file")]),
+        ])
+        # fmt:on
         if not multiecho:
             # fmt:off
             workflow.connect([
@@ -767,18 +763,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             workflow.get_node(node).inputs.source_file = ref_file
 
     return workflow
-
-
-def _get_series_len(bold_fname):
-    from niworkflows.interfaces.registration import _get_vols_to_discard
-
-    img = nb.load(bold_fname)
-    if len(img.shape) < 4:
-        return 1
-
-    skip_vols = _get_vols_to_discard(img)
-
-    return img.shape[3] - skip_vols
 
 
 def _create_mem_gb(bold_fname):
