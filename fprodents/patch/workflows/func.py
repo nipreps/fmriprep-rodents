@@ -134,7 +134,7 @@ methodology of *fMRIPrep*.
     )
 
     gen_ref = pe.Node(
-        EstimateReferenceImage(multiecho=multiecho), name="gen_ref", mem_gb=1
+        GenerateSamplingReference(), name="gen_ref", mem_gb=1
     )  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
 
     calc_dummy_scans = pe.Node(

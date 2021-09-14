@@ -2,8 +2,8 @@ import logging
 import os.path as op
 from niworkflows.interfaces.bids import BIDSDataGrabber as _BIDSDataGrabber
 from niworkflows.interfaces.norm import (
-     _SpatialNormalizationInputSpec as _NormInputSpec,
-     SpatialNormalization as _Norm,
+    _SpatialNormalizationInputSpec as _NormInputSpec,
+    SpatialNormalization as _Norm,
 )
 from smriprep.interfaces.templateflow import (
     TemplateFlowSelect as _TFSelect,

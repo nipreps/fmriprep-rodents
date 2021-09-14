@@ -745,7 +745,7 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
     """
     from niworkflows.interfaces.reportlets.registration import (
         SimpleBeforeAfterRPT as SimpleBeforeAfter
-        )
+    )
     from niworkflows.interfaces.reportlets.masks import ROIsPlot
     from smriprep.interfaces import DerivativesDataSink
 
