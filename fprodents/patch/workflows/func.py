@@ -5,9 +5,9 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-from niworkflows.interfaces.images import ValidateImage
-from niworkflows.interfaces.masks import SimpleShowMaskRPT
-from niworkflows.interfaces.registration import EstimateReferenceImage
+from niworkflows.interfaces.header import ValidateImage
+from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
+from niworkflows.interfaces.nibabel import GenerateSamplingReference
 from niworkflows.utils.connections import listify
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 

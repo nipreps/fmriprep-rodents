@@ -1,9 +1,9 @@
 import logging
 import os.path as op
 from niworkflows.interfaces.bids import BIDSDataGrabber as _BIDSDataGrabber
-from niworkflows.interfaces.mni import (
-    _RobustMNINormalizationInputSpec as _NormInputSpec,
-    RobustMNINormalization as _Norm,
+from niworkflows.interfaces.norm import (
+     _SpatialNormalizationInputSpec as _NormInputSpec,
+     SpatialNormalization as _Norm,
 )
 from smriprep.interfaces.templateflow import (
     TemplateFlowSelect as _TFSelect,
@@ -103,7 +103,7 @@ class RobustMNINormalization(_Norm):
     input_spec = _RobustMNINormalizationInputSpec
 
     def _get_ants_args(self):
-        from niworkflows.interfaces.mni import mask, create_cfm
+        from niworkflows.interfaces.norm import mask, create_cfm
 
         args = {
             "moving_image": self.inputs.moving_image,

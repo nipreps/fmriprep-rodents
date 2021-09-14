@@ -128,8 +128,7 @@ def init_func_preproc_wf(bold_file):
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.nibabel import ApplyMask
-    from niworkflows.interfaces.utility import KeySelect
-    from niworkflows.interfaces.utils import DictMerge
+    from niworkflows.interfaces.utility import KeySelect, DictMerge
 
     from ...patch.workflows.func import init_bold_reference_wf
 
@@ -819,7 +818,7 @@ def _get_wf_name(bold_fname):
 
 def _to_join(in_file, join_file):
     """Join two tsv files if the join_file is not ``None``."""
-    from niworkflows.interfaces.utils import JoinTSVColumns
+    from niworkflows.interfaces.utility import JoinTSVColumns
 
     if join_file is None:
         return in_file

@@ -2,7 +2,7 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 
 # Load modules for compatibility
-from niworkflows.interfaces import bids, cifti, freesurfer, images, itk, surf, utils
+from niworkflows.interfaces import bids, cifti, freesurfer, images, itk, surf, utility
 
 from .reports import SubjectSummary, FunctionalSummary, AboutSummary
 from .confounds import GatherConfounds, ICAConfounds, FMRISummary
@@ -20,7 +20,7 @@ __all__ = [
     "images",
     "itk",
     "surf",
-    "utils",
+    "utility",
     "SubjectSummary",
     "FunctionalSummary",
     "AboutSummary",
