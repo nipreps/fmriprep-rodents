@@ -172,8 +172,8 @@ methodology of *fMRIPrep*.
         brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False,)
         # fmt: off
         workflow.connect([
-            (gen_ref, brain_extraction_wf, [
-                ("ref_image", "inputnode.in_files"),
+            (gen_avg, brain_extraction_wf, [
+                ("out_file", "inputnode.in_files"),
             ]),
             (brain_extraction_wf, outputnode, [
                 ("outputnode.out_corrected", "ref_image"),
@@ -190,34 +190,47 @@ methodology of *fMRIPrep*.
         workflow.connect([
             (inputnode, mask_brain, [("bold_mask", "in_mask")]),
             (inputnode, outputnode, [("bold_mask", "bold_mask")]),
-            (gen_ref, outputnode, [("ref_image", "ref_image")]),
-            (gen_ref, mask_brain, [("ref_image", "in_file")]),
+            (gen_avg, outputnode, [("ref_image", "ref_image")]),
+            (gen_avg, mask_brain, [("out_file", "in_file")]),
             (mask_brain, outputnode, [("out_file", "ref_image_brain")]),
         ])
         # fmt: on
 
-    if sbref_files:
-        nsbrefs = 0
-        if sbref_files is not True:
-            # If not boolean, then it is a list-of or pathlike.
-            inputnode.inputs.sbref_file = sbref_files
-            nsbrefs = 1 if isinstance(sbref_files, str) else len(sbref_files)
-
-        val_sbref = pe.MapNode(
-            ValidateImage(),
-            name="val_sbref",
-            mem_gb=DEFAULT_MEMORY_MIN_GB,
-            iterfield=["in_file"],
-        )
+    if not sbref_files:
         # fmt: off
         workflow.connect([
-            (inputnode, val_sbref, [(("sbref_file", listify), "in_file")]),
-            (val_sbref, gen_ref, [("out_file", "sbref_file")]),
+            (val_bold, gen_avg, [(("out_file", pop_file), "in_file")]),  # pop first echo of ME-EPI
+            (get_dummy, gen_avg, [("t_mask", "t_mask")]),
         ])
         # fmt: on
+        return workflow
 
-        # Edit the boilerplate as the SBRef will be the reference
-        workflow.__desc__ = f"""\
+    from niworkflows.interfaces.nibabel import MergeSeries
+
+    nsbrefs = 0
+    if sbref_files is not True:
+        # If not boolean, then it is a list-of or pathlike.
+        inputnode.inputs.sbref_file = sbref_files
+        nsbrefs = 1 if isinstance(sbref_files, str) else len(sbref_files)
+
+    val_sbref = pe.MapNode(
+        ValidateImage(),
+        name="val_sbref",
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+        iterfield=["in_file"],
+    )
+    merge_sbrefs = pe.Node(MergeSeries(), name="merge_sbrefs")
+
+    # fmt: off
+    workflow.connect([
+        (inputnode, val_sbref, [(("sbref_file", listify), "in_file")]),
+        (val_sbref, merge_sbrefs, [("out_file", "in_files")]),
+        (merge_sbrefs, gen_avg, [("out_file", "in_file")]),
+    ])
+    # fmt: on
+
+    # Edit the boilerplate as the SBRef will be the reference
+    workflow.__desc__ = f"""\
 First, a reference volume and its skull-stripped version were generated
 by aligning and averaging{' the first echo of' * multiecho}
 {nsbrefs or ''} single-band references (SBRefs).
