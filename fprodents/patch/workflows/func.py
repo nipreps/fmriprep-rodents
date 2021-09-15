@@ -5,10 +5,11 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+from niworkflows.interfaces.bold import NonsteadyStatesDetector
 from niworkflows.interfaces.header import ValidateImage
+from niworkflows.interfaces.images import RobustAverage
 from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
-from niworkflows.interfaces.nibabel import GenerateSamplingReference
-from niworkflows.utils.connections import listify
+from niworkflows.utils.connections import listify, pop_file
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 
 
@@ -133,9 +134,8 @@ methodology of *fMRIPrep*.
         iterfield=["in_file"],
     )
 
-    gen_ref = pe.Node(
-        GenerateSamplingReference(), name="gen_ref", mem_gb=1
-    )  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
+    get_dummy = pe.Node(NonsteadyStatesDetector(), name="get_dummy")
+    gen_avg = pe.Node(RobustAverage(), name="gen_avg", mem_gb=1)
 
     calc_dummy_scans = pe.Node(
         niu.Function(function=_pass_dummy_scans, output_names=["skip_vols_num"]),
@@ -153,18 +153,16 @@ methodology of *fMRIPrep*.
     # fmt: off
     workflow.connect([
         (inputnode, val_bold, [(("bold_file", listify), "in_file")]),
+        (inputnode, get_dummy, [(("bold_file", pop_file), "in_file")]),
         (inputnode, calc_dummy_scans, [("dummy_scans", "dummy_scans")]),
-        (val_bold, gen_ref, [("out_file", "in_file")]),
         (val_bold, bold_1st, [(("out_file", listify), "inlist")]),
-        (gen_ref, calc_dummy_scans, [("n_volumes_to_discard", "algo_dummy_scans")]),
+        (get_dummy, calc_dummy_scans, [("n_dummy", "algo_dummy_scans")]),
         (calc_dummy_scans, outputnode, [("skip_vols_num", "skip_vols")]),
-        (gen_ref, outputnode, [
-            ("ref_image", "raw_ref_image"),
-            ("n_volumes_to_discard", "algo_dummy_scans"),
-        ]),
+        (gen_avg, outputnode, [("out_file", "raw_ref_image")]),
         (val_bold, validate_1st, [(("out_report", listify), "inlist")]),
         (bold_1st, outputnode, [("out", "bold_file")]),
         (validate_1st, outputnode, [("out", "validation_report")]),
+        (get_dummy, outputnode, [("n_dummy", "algo_dummy_scans")]),
     ])
     # fmt: on
 
