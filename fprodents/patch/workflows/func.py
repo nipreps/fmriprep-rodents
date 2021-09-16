@@ -190,7 +190,7 @@ methodology of *fMRIPrep*.
         workflow.connect([
             (inputnode, mask_brain, [("bold_mask", "in_mask")]),
             (inputnode, outputnode, [("bold_mask", "bold_mask")]),
-            (gen_avg, outputnode, [("ref_image", "ref_image")]),
+            (gen_avg, outputnode, [("out_file", "ref_image")]),
             (gen_avg, mask_brain, [("out_file", "in_file")]),
             (mask_brain, outputnode, [("out_file", "ref_image_brain")]),
         ])
