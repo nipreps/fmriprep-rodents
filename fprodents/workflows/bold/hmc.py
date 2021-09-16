@@ -60,7 +60,7 @@ def init_bold_hmc_wf(mem_gb, omp_nthreads, name="bold_hmc_wf"):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces import NormalizeMotionParams
+    from niworkflows.interfaces.confounds import NormalizeMotionParams
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
