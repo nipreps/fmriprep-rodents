@@ -276,7 +276,7 @@ jobs:
           name: Clean working directory
           when: on_fail
           command: |
-            find /tmp/nirodents-bold-se/work \( -name "*.gii" -or -name "*.h5" \) \
+            find /tmp/nirodents-bold-se/work \( -name "*.nii.gz" -or -name "*.nii" -or -name "*.gii" -or -name "*.h5" \) \
                 -exec sh -c 'rm -f {}; touch {}' \;
       - store_artifacts:
           path: /tmp/nirodents-bold-se/work
