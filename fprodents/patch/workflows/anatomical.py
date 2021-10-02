@@ -322,7 +322,9 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     else:
         # ants_affine_init?
         brain_extraction_wf = init_rodent_brain_extraction_wf(
-            template_id=skull_strip_template.space, omp_nthreads=omp_nthreads,
+            template_id=skull_strip_template.space,
+            omp_nthreads=omp_nthreads,
+            debug=debug
         )
 
     # 3. Spatial normalization

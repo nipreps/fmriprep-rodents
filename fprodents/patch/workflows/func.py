@@ -12,6 +12,7 @@ from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
 from niworkflows.utils.connections import listify, pop_file
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 
+from ... import config
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
@@ -169,7 +170,10 @@ methodology of *fMRIPrep*.
     if not pre_mask:
         from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
 
-        brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False,)
+        brain_extraction_wf = init_rodent_brain_extraction_wf(
+            ants_affine_init=False,
+            debug=config.execution.debug is True
+        )
         # fmt: off
         workflow.connect([
             (gen_avg, brain_extraction_wf, [
