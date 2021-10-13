@@ -113,7 +113,7 @@ def init_bold_std_trans_wf(
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.itk import MultiApplyTransforms
     from niworkflows.interfaces.utility import KeySelect
-    from niworkflows.interfaces.utils import GenerateSamplingReference
+    from niworkflows.interfaces.nibabel import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
     from ...patch.workflows.func import init_bold_reference_wf

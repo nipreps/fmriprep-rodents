@@ -5,12 +5,14 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-from niworkflows.interfaces.images import ValidateImage
-from niworkflows.interfaces.masks import SimpleShowMaskRPT
-from niworkflows.interfaces.registration import EstimateReferenceImage
-from niworkflows.utils.connections import listify
+from niworkflows.interfaces.bold import NonsteadyStatesDetector
+from niworkflows.interfaces.header import ValidateImage
+from niworkflows.interfaces.images import RobustAverage
+from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
+from niworkflows.utils.connections import listify, pop_file
 from niworkflows.utils.misc import pass_dummy_scans as _pass_dummy_scans
 
+from ... import config
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
@@ -133,9 +135,8 @@ methodology of *fMRIPrep*.
         iterfield=["in_file"],
     )
 
-    gen_ref = pe.Node(
-        EstimateReferenceImage(multiecho=multiecho), name="gen_ref", mem_gb=1
-    )  # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
+    get_dummy = pe.Node(NonsteadyStatesDetector(), name="get_dummy")
+    gen_avg = pe.Node(RobustAverage(), name="gen_avg", mem_gb=1)
 
     calc_dummy_scans = pe.Node(
         niu.Function(function=_pass_dummy_scans, output_names=["skip_vols_num"]),
@@ -153,29 +154,30 @@ methodology of *fMRIPrep*.
     # fmt: off
     workflow.connect([
         (inputnode, val_bold, [(("bold_file", listify), "in_file")]),
+        (inputnode, get_dummy, [(("bold_file", pop_file), "in_file")]),
         (inputnode, calc_dummy_scans, [("dummy_scans", "dummy_scans")]),
-        (val_bold, gen_ref, [("out_file", "in_file")]),
         (val_bold, bold_1st, [(("out_file", listify), "inlist")]),
-        (gen_ref, calc_dummy_scans, [("n_volumes_to_discard", "algo_dummy_scans")]),
+        (get_dummy, calc_dummy_scans, [("n_dummy", "algo_dummy_scans")]),
         (calc_dummy_scans, outputnode, [("skip_vols_num", "skip_vols")]),
-        (gen_ref, outputnode, [
-            ("ref_image", "raw_ref_image"),
-            ("n_volumes_to_discard", "algo_dummy_scans"),
-        ]),
+        (gen_avg, outputnode, [("out_file", "raw_ref_image")]),
         (val_bold, validate_1st, [(("out_report", listify), "inlist")]),
         (bold_1st, outputnode, [("out", "bold_file")]),
         (validate_1st, outputnode, [("out", "validation_report")]),
+        (get_dummy, outputnode, [("n_dummy", "algo_dummy_scans")]),
     ])
     # fmt: on
 
     if not pre_mask:
         from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
 
-        brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False,)
+        brain_extraction_wf = init_rodent_brain_extraction_wf(
+            ants_affine_init=False,
+            debug=config.execution.debug is True
+        )
         # fmt: off
         workflow.connect([
-            (gen_ref, brain_extraction_wf, [
-                ("ref_image", "inputnode.in_files"),
+            (gen_avg, brain_extraction_wf, [
+                ("out_file", "inputnode.in_files"),
             ]),
             (brain_extraction_wf, outputnode, [
                 ("outputnode.out_corrected", "ref_image"),
@@ -192,34 +194,47 @@ methodology of *fMRIPrep*.
         workflow.connect([
             (inputnode, mask_brain, [("bold_mask", "in_mask")]),
             (inputnode, outputnode, [("bold_mask", "bold_mask")]),
-            (gen_ref, outputnode, [("ref_image", "ref_image")]),
-            (gen_ref, mask_brain, [("ref_image", "in_file")]),
+            (gen_avg, outputnode, [("out_file", "ref_image")]),
+            (gen_avg, mask_brain, [("out_file", "in_file")]),
             (mask_brain, outputnode, [("out_file", "ref_image_brain")]),
         ])
         # fmt: on
 
-    if sbref_files:
-        nsbrefs = 0
-        if sbref_files is not True:
-            # If not boolean, then it is a list-of or pathlike.
-            inputnode.inputs.sbref_file = sbref_files
-            nsbrefs = 1 if isinstance(sbref_files, str) else len(sbref_files)
-
-        val_sbref = pe.MapNode(
-            ValidateImage(),
-            name="val_sbref",
-            mem_gb=DEFAULT_MEMORY_MIN_GB,
-            iterfield=["in_file"],
-        )
+    if not sbref_files:
         # fmt: off
         workflow.connect([
-            (inputnode, val_sbref, [(("sbref_file", listify), "in_file")]),
-            (val_sbref, gen_ref, [("out_file", "sbref_file")]),
+            (val_bold, gen_avg, [(("out_file", pop_file), "in_file")]),  # pop first echo of ME-EPI
+            (get_dummy, gen_avg, [("t_mask", "t_mask")]),
         ])
         # fmt: on
+        return workflow
 
-        # Edit the boilerplate as the SBRef will be the reference
-        workflow.__desc__ = f"""\
+    from niworkflows.interfaces.nibabel import MergeSeries
+
+    nsbrefs = 0
+    if sbref_files is not True:
+        # If not boolean, then it is a list-of or pathlike.
+        inputnode.inputs.sbref_file = sbref_files
+        nsbrefs = 1 if isinstance(sbref_files, str) else len(sbref_files)
+
+    val_sbref = pe.MapNode(
+        ValidateImage(),
+        name="val_sbref",
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+        iterfield=["in_file"],
+    )
+    merge_sbrefs = pe.Node(MergeSeries(), name="merge_sbrefs")
+
+    # fmt: off
+    workflow.connect([
+        (inputnode, val_sbref, [(("sbref_file", listify), "in_file")]),
+        (val_sbref, merge_sbrefs, [("out_file", "in_files")]),
+        (merge_sbrefs, gen_avg, [("out_file", "in_file")]),
+    ])
+    # fmt: on
+
+    # Edit the boilerplate as the SBRef will be the reference
+    workflow.__desc__ = f"""\
 First, a reference volume and its skull-stripped version were generated
 by aligning and averaging{' the first echo of' * multiecho}
 {nsbrefs or ''} single-band references (SBRefs).

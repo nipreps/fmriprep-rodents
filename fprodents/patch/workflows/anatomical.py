@@ -5,7 +5,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import fsl, utility as niu
 from nipype.interfaces.ants.base import Info as ANTsInfo
 from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
-from niworkflows.interfaces.images import ValidateImage
+from niworkflows.interfaces.header import ValidateImage
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.utility import KeySelect
@@ -322,7 +322,9 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     else:
         # ants_affine_init?
         brain_extraction_wf = init_rodent_brain_extraction_wf(
-            template_id=skull_strip_template.space, omp_nthreads=omp_nthreads,
+            template_id=skull_strip_template.space,
+            omp_nthreads=omp_nthreads,
+            debug=debug
         )
 
     # 3. Spatial normalization
@@ -743,8 +745,10 @@ def init_anat_reports_wf(*, output_dir, name="anat_reports_wf"):
     template
         Template space and specifications
     """
-    from niworkflows.interfaces import SimpleBeforeAfter
-    from niworkflows.interfaces.masks import ROIsPlot
+    from niworkflows.interfaces.reportlets.registration import (
+        SimpleBeforeAfterRPT as SimpleBeforeAfter
+    )
+    from niworkflows.interfaces.reportlets.masks import ROIsPlot
     from smriprep.interfaces import DerivativesDataSink
 
     workflow = Workflow(name=name)
@@ -1053,7 +1057,7 @@ def init_anat_derivatives_wf(
     # Write derivatives in standard spaces specified by --output-spaces
     if getattr(spaces, "_cached") is not None and spaces.cached.references:
         from niworkflows.interfaces.space import SpaceDataSource
-        from niworkflows.interfaces.utils import GenerateSamplingReference
+        from niworkflows.interfaces.nibabel import GenerateSamplingReference
         from niworkflows.interfaces.fixes import (
             FixHeaderApplyTransforms as ApplyTransforms,
         )
