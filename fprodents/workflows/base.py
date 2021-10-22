@@ -333,7 +333,7 @@ tasks and sessions), the following preprocessing was performed.
              [('outputnode.epi_ref_file', 'inputnode.ref_file'),
               ('outputnode.xfm_files', 'inputnode.bold_ref_xfm'),
               ('outputnode.validation_report', 'inputnode.validation_report'),
-              ('outputnode.n_dummy', 'inputnode.n_dummy_scans')]),
+              (('outputnode.n_dummy', _pop), 'inputnode.n_dummy_scans')]),
         ])
         # fmt:on
     return workflow
