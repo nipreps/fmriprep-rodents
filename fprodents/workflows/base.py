@@ -106,6 +106,8 @@ def init_single_subject_wf(subject_id):
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.utils.bids import collect_data
     from niworkflows.utils.spaces import Reference
+    from niworkflows.workflows.epi.refmap import init_epi_reference_wf
+    from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
     from ..patch.interfaces import BIDSDataGrabber
     from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
@@ -297,7 +299,23 @@ tasks and sessions), the following preprocessing was performed.
     )
 
     for bold_file in subject_data["bold"]:
+        bold_ref_wf = init_epi_reference_wf(
+            auto_bold_nss=True,
+            omp_nthreads=config.nipype.omp_nthreads
+        )
+        bold_ref_wf.inputs.inputnode.in_files = bold_file
+
+        # brain extraction on reference file
+        brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False)
+
         func_preproc_wf = init_func_preproc_wf(bold_file)
+
+        # fmt:off
+        workflow.connect([
+            (bold_ref_wf, brain_extraction_wf, [
+                ('outputnode.epi_ref_file', 'inputnode.in_files')]),
+        ])
+        # fmt:on
 
         # fmt:off
         workflow.connect([
@@ -309,6 +327,13 @@ tasks and sessions), the following preprocessing was performed.
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
+            (brain_extraction_wf, func_preproc_wf,
+             [("outputnode.out_mask", "inputnode.bold_mask")]),
+            (bold_ref_wf, func_preproc_wf,
+             [('outputnode.epi_ref_file', 'inputnode.ref_file'),
+              ('outputnode.xfm_files', 'inputnode.bold_ref_xfm'),
+              ('outputnode.validation_report', 'inputnode.validation_report'),
+              ('outputnode.n_dummy', 'inputnode.n_dummy_scans')]),
         ])
         # fmt:on
     return workflow
