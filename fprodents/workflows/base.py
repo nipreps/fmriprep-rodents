@@ -314,11 +314,6 @@ tasks and sessions), the following preprocessing was performed.
         workflow.connect([
             (bold_ref_wf, brain_extraction_wf, [
                 ('outputnode.epi_ref_file', 'inputnode.in_files')]),
-        ])
-        # fmt:on
-
-        # fmt:off
-        workflow.connect([
             (anat_preproc_wf, func_preproc_wf,
              [('outputnode.t2w_preproc', 'inputnode.anat_preproc'),
               ('outputnode.t2w_mask', 'inputnode.anat_mask'),
