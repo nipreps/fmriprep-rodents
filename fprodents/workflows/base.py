@@ -312,8 +312,6 @@ tasks and sessions), the following preprocessing was performed.
 
         # fmt:off
         workflow.connect([
-            (bold_ref_wf, brain_extraction_wf, [
-                ('outputnode.epi_ref_file', 'inputnode.in_files')]),
             (anat_preproc_wf, func_preproc_wf,
              [('outputnode.t2w_preproc', 'inputnode.anat_preproc'),
               ('outputnode.t2w_mask', 'inputnode.anat_mask'),
@@ -322,6 +320,8 @@ tasks and sessions), the following preprocessing was performed.
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
+            (bold_ref_wf, brain_extraction_wf, [
+                ('outputnode.epi_ref_file', 'inputnode.in_files')]),
             (brain_extraction_wf, func_preproc_wf,
              [("outputnode.out_mask", "inputnode.bold_mask")]),
             (bold_ref_wf, func_preproc_wf,
