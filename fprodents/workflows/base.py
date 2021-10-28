@@ -105,11 +105,12 @@ def init_single_subject_wf(subject_id):
     from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.utils.bids import collect_data
+    from niworkflows.utils.connections import listify
     from niworkflows.utils.spaces import Reference
     from niworkflows.workflows.epi.refmap import init_epi_reference_wf
     from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
     from ..patch.interfaces import BIDSDataGrabber
-    from ..patch.utils import fix_multi_source_name
+    from ..patch.utils import extract_entities, fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
     subject_data = collect_data(
@@ -299,6 +300,10 @@ tasks and sessions), the following preprocessing was performed.
     )
 
     for bold_file in subject_data["bold"]:
+        echoes = extract_entities(bold_file).get("echo", [])
+        echo_idxs = listify(echoes)
+        multiecho = len(echo_idxs) > 2
+
         bold_ref_wf = init_epi_reference_wf(
             auto_bold_nss=True,
             omp_nthreads=config.nipype.omp_nthreads
