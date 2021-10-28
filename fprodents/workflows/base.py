@@ -303,7 +303,9 @@ tasks and sessions), the following preprocessing was performed.
             auto_bold_nss=True,
             omp_nthreads=config.nipype.omp_nthreads
         )
-        bold_ref_wf.inputs.inputnode.in_files = bold_file
+        bold_ref_wf.inputs.inputnode.in_files = (
+            bold_file if not multiecho else bold_file[0]
+        )
 
         # brain extraction on reference file
         brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False)
