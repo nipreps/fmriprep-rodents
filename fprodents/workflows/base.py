@@ -306,6 +306,8 @@ tasks and sessions), the following preprocessing was performed.
 
         bold_ref_wf = init_epi_reference_wf(
             auto_bold_nss=True,
+            adaptive_bspline_grid=True,
+            n4_iter=4,
             omp_nthreads=config.nipype.omp_nthreads
         )
         bold_ref_wf.inputs.inputnode.in_files = (
