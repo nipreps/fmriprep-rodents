@@ -306,16 +306,11 @@ tasks and sessions), the following preprocessing was performed.
 
         bold_ref_wf = init_epi_reference_wf(
             auto_bold_nss=True,
-            adaptive_bspline_grid=True,
-            n4_iter=4,
             omp_nthreads=config.nipype.omp_nthreads
         )
         bold_ref_wf.inputs.inputnode.in_files = (
             bold_file if not multiecho else bold_file[0]
         )
-
-        # brain extraction on reference file
-        brain_extraction_wf = init_rodent_brain_extraction_wf(ants_affine_init=False)
 
         func_preproc_wf = init_func_preproc_wf(bold_file)
 
@@ -329,10 +324,6 @@ tasks and sessions), the following preprocessing was performed.
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
-            (bold_ref_wf, brain_extraction_wf, [
-                ('outputnode.epi_ref_file', 'inputnode.in_files')]),
-            (brain_extraction_wf, func_preproc_wf,
-             [("outputnode.out_mask", "inputnode.bold_mask")]),
             (bold_ref_wf, func_preproc_wf,
              [('outputnode.epi_ref_file', 'inputnode.ref_file'),
               ('outputnode.xfm_files', 'inputnode.bold_ref_xfm'),
