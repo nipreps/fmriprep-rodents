@@ -108,7 +108,6 @@ def init_single_subject_wf(subject_id):
     from niworkflows.utils.connections import listify
     from niworkflows.utils.spaces import Reference
     from niworkflows.workflows.epi.refmap import init_epi_reference_wf
-    from nirodents.workflows.brainextraction import init_rodent_brain_extraction_wf
     from ..patch.interfaces import BIDSDataGrabber
     from ..patch.utils import extract_entities, fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf

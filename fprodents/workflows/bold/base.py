@@ -437,7 +437,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     # fmt:off
     workflow.connect([
         (inputnode, bold_reg_wf, [('anat_preproc', 'inputnode.t1w_brain'),
-                                ('ref_file', 'inputnode.ref_bold_brain')]),
+                                  ('ref_file', 'inputnode.ref_bold_brain')]),
         (inputnode, t1w_brain, [('anat_preproc', 'in_file'),
                                 ('anat_mask', 'in_mask')]),
         # convert bold reference LTA transform to other formats
