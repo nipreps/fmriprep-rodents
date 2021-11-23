@@ -306,7 +306,9 @@ tasks and sessions), the following preprocessing was performed.
 
         bold_ref_wf = init_epi_reference_wf(
             auto_bold_nss=True,
-            omp_nthreads=config.nipype.omp_nthreads
+            omp_nthreads=config.nipype.omp_nthreads,
+            n4_iter=4,
+            adaptive_bspline_grid=True,
         )
         bold_ref_wf.inputs.inputnode.in_files = (
             bold_file if not multiecho else bold_file[0]
