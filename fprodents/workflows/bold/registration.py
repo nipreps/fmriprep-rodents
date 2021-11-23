@@ -105,8 +105,11 @@ Co-registration was configured with six degrees of freedom.
     )
 
     coreg = pe.Node(
-        FLIRTRPT(dof=bold2t1w_dof, generate_report=True, uses_qform=True), name="coreg"
-    )
+        FLIRTRPT(dof=bold2t1w_dof,
+            generate_report=True,
+            uses_qform=True,
+            args="-basescale 1"),
+        name="coreg")
 
     if bold2t1w_init not in ("register", "header"):
         raise ValueError(f"Unknown BOLD-T1w initialization option: {bold2t1w_init}")
@@ -211,8 +214,6 @@ def init_bold_t1_trans_wf(
     ref_bold_brain
         Reference image to which BOLD series is aligned
         If ``fieldwarp == True``, ``ref_bold_brain`` should be unwarped
-    ref_bold_mask
-        Skull-stripping mask of reference image
     t1w_brain
         Skull-stripped bias-corrected structural template image
     t1w_mask
@@ -232,8 +233,6 @@ def init_bold_t1_trans_wf(
         Motion-corrected BOLD series in T1 space
     bold_t1_ref
         Reference, contrast-enhanced summary of the motion-corrected BOLD series in T1w space
-    bold_mask_t1
-        BOLD mask in T1 space
 
 
     """
@@ -249,7 +248,6 @@ def init_bold_t1_trans_wf(
             fields=[
                 "name_source",
                 "ref_bold_brain",
-                "ref_bold_mask",
                 "t1w_brain",
                 "t1w_mask",
                 "bold_split",
@@ -270,10 +268,6 @@ def init_bold_t1_trans_wf(
         GenerateSamplingReference(), name="gen_ref", mem_gb=0.3
     )  # 256x256x256 * 64 / 8 ~ 150MB
 
-    mask_t1w_tfm = pe.Node(
-        ApplyTransforms(interpolation="MultiLabel"), name="mask_t1w_tfm", mem_gb=0.1
-    )
-
     bold_ref_t1w_tfm = pe.Node(
         ApplyTransforms(interpolation="LanczosWindowedSinc"), name="bold_ref_t1w_tfm", mem_gb=0.1
     )
@@ -283,10 +277,6 @@ def init_bold_t1_trans_wf(
         (inputnode, gen_ref, [('ref_bold_brain', 'moving_image'),
                               ('t1w_brain', 'fixed_image'),
                               ('t1w_mask', 'fov_mask')]),
-        (inputnode, mask_t1w_tfm, [('ref_bold_mask', 'input_image')]),
-        (gen_ref, mask_t1w_tfm, [('out_file', 'reference_image')]),
-        (inputnode, mask_t1w_tfm, [('bold2anat', 'transforms')]),
-        (mask_t1w_tfm, outputnode, [('output_image', 'bold_mask_t1')]),
         (inputnode, bold_ref_t1w_tfm, [('ref_bold_brain', 'input_image')]),
         (gen_ref, bold_ref_t1w_tfm, [('out_file', 'reference_image')]),
         (inputnode, bold_ref_t1w_tfm, [('bold2anat', 'transforms')]),
