@@ -23,7 +23,12 @@
 # SOFTWARE.
 
 # Use Ubuntu 20.04 LTS
-FROM ubuntu:focal-20210416
+FROM --platform=linux/amd64 ubuntu:focal-20210416
+
+# Make apt non-interactive
+RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
+  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90circleci
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Prepare environment
 RUN apt-get update && \
@@ -36,14 +41,16 @@ RUN apt-get update && \
                     curl \
                     git \
                     libtool \
+                    locales \
                     lsb-release \
                     pkg-config \
                     unzip \
                     xvfb && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ENV DEBIAN_FRONTEND="noninteractive" \
-    LANG="en_US.UTF-8" \
+# Use unicode
+RUN locale-gen C.UTF-8 || true
+ENV LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8"
 
 # Installing freesurfer
