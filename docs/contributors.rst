@@ -9,9 +9,9 @@ update an existing environment, as necessary.
 
 Development in Docker is encouraged, for the sake of consistency and
 portability.
-By default, work should be built off of `poldracklab/fmriprep:unstable
-<https://hub.docker.com/r/poldracklab/fmriprep/>`_, which tracks the ``master`` branch,
-or ``poldracklab/fmriprep:latest``, which tracks the latest release version (see the
+By default, work should be built off of `nipreps/fmriprep:unstable
+<https://hub.docker.com/r/nipreps/fmriprep/>`_, which tracks the ``master`` branch,
+or ``nipreps/fmriprep:latest``, which tracks the latest release version (see the
 installation_ guide for the basic procedure for running).
 
 It will be assumed the developer has a working repository in
@@ -39,7 +39,7 @@ For instance, if your repositories are contained in ``$HOME/projects``::
     $ fmriprep-docker -f $HOME/projects/fmriprep/fmriprep \
                       -n $HOME/projects/niworkflows/niworkflows \
                       -p $HOME/projects/nipype/nipype \
-                      -i poldracklab/fmriprep:latest \
+                      -i nipreps/fmriprep:latest \
                       $HOME/fullds005 $HOME/dockerout participant
 
 Note the ``-i`` flag allows you to specify an image.
@@ -55,7 +55,7 @@ For example, ::
 
     $ docker run --rm -v $HOME/fullds005:/data:ro -v $HOME/dockerout:/out \
         -v $HOME/projects/fmriprep/fmriprep:/usr/local/miniconda/lib/python3.7/site-packages/fmriprep:ro \
-        poldracklab/fmriprep:latest /data /out/out participant \
+        nipreps/fmriprep:latest /data /out/out participant \
         -w /out/work/
 
 In order to work directly in the container, pass the ``--shell`` flag to
@@ -68,7 +68,7 @@ arguments in a ``docker`` command::
 
     $ docker run --rm -v $HOME/fullds005:/data:ro -v $HOME/dockerout:/out \
         -v $HOME/projects/fmriprep/fmriprep:/usr/local/miniconda/lib/python3.7/site-packages/fmriprep:ro --entrypoint=bash \
-        poldracklab/fmriprep:latest
+        nipreps/fmriprep:latest
 
 Patching containers can be achieved in Singularity analogous to ``docker``
 using the ``--bind`` (``-B``) option: ::
@@ -95,19 +95,19 @@ dependency changes.
 
 Python dependencies should generally be included in the ``REQUIRES``
 list in `fmriprep/__about__.py
-<https://github.com/poldracklab/fmriprep/blob/510f28db4aab8a6adde0ccadeba2da7d78ed696e/fmriprep/__about__.py#L87-L107>`_.
+<https://github.com/nipreps/fmriprep/blob/510f28db4aab8a6adde0ccadeba2da7d78ed696e/fmriprep/__about__.py#L87-L107>`_.
 If the latest version in `PyPI <https://pypi.org/>`_ is sufficient,
 then no further action is required.
 
 For large Python dependencies where there will be a benefit to
 pre-compiled binaries, `conda <https://github.com/conda/conda>`_ packages
 may also be added to the ``conda install`` line in the `Dockerfile
-<https://github.com/poldracklab/fmriprep/blob/29133e5e9f92aae4b23dd897f9733885a60be311/Dockerfile#L46>`_.
+<https://github.com/nipreps/fmriprep/blob/29133e5e9f92aae4b23dd897f9733885a60be311/Dockerfile#L46>`_.
 
 Finally, if a specific version of a repository needs to be pinned, edit
 the ``requirements.txt`` file.
 See the `current
-<https://github.com/poldracklab/fmriprep/blob/master/requirements.txt>`_
+<https://github.com/nipreps/fmriprep/blob/master/requirements.txt>`_
 file for examples.
 
 Non-Python dependencies must also be installed in the Dockerfile, via a
@@ -130,7 +130,7 @@ The ``VERSION`` build argument is necessary to ensure that help text
 can be reliably generated. The ``get_version.py`` tool constructs the
 version string from the current repository state.
 
-To work in this image, replace ``poldracklab/fmriprep:latest`` with
+To work in this image, replace ``nipreps/fmriprep:latest`` with
 ``fmriprep`` in any of the above commands.
 This image may be accessed by the `Docker wrapper`_
 via the ``-i`` flag, e.g., ::

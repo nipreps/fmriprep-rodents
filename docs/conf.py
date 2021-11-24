@@ -330,7 +330,7 @@ texinfo_documents = [
 # The following is used by sphinx.ext.linkcode to provide links to github
 linkcode_resolve = make_linkcode_resolve(
     "fmriprep",
-    "https://github.com/poldracklab/"
+    "https://github.com/nipreps/"
     "fmriprep/blob/{revision}/"
     "{package}/{path}#L{lineno}",
 )

@@ -68,12 +68,12 @@ def check_latest():
 
 def is_flagged():
     """Check whether current version is flagged."""
-    # https://raw.githubusercontent.com/poldracklab/fmriprep-rodents/master/.versions.json
+    # https://raw.githubusercontent.com/nipreps/fmriprep-rodents/master/.versions.json
     flagged = tuple()
     try:
         response = requests.get(
             url="""\
-https://raw.githubusercontent.com/poldracklab/fmriprep-rodents/master/.versions.json""",
+https://raw.githubusercontent.com/nipreps/fmriprep-rodents/master/.versions.json""",
             timeout=1.0,
         )
     except Exception:

@@ -132,19 +132,19 @@ is difficult to describe as one unit of work, please consider splitting it into 
 
 The current list of issue labels are [here][link_labels] and include:
 
-* [![Good first issue](https://img.shields.io/github/labels/poldracklab/fmriprep/good%20first%20issue)][link_firstissue] *These issues contain a task that is amenable to new contributors because it doesn't entail a steep learning curve.*
+* [![Good first issue](https://img.shields.io/github/labels/nipreps/fmriprep/good%20first%20issue)][link_firstissue] *These issues contain a task that is amenable to new contributors because it doesn't entail a steep learning curve.*
 
     If you feel that you can contribute to one of these issues,
     we especially encourage you to do so!
 
-* [![Bug](https://img.shields.io/github/labels/poldracklab/fmriprep/bug)][link_bugs] *These issues point to problems in the project.*
+* [![Bug](https://img.shields.io/github/labels/nipreps/fmriprep/bug)][link_bugs] *These issues point to problems in the project.*
 
     If you find new a bug, please give as much detail as possible in your issue,
     including steps to recreate the error.
     If you experience the same bug as one already listed,
     please add any additional information that you have as a comment.
 
-* [![Feature](https://img.shields.io/github/labels/poldracklab/fmriprep/feature)][link_enhancement] *These issues are asking for new features and improvements to be considered by the project.*
+* [![Feature](https://img.shields.io/github/labels/nipreps/fmriprep/feature)][link_enhancement] *These issues are asking for new features and improvements to be considered by the project.*
 
     Please try to make sure that your requested feature is distinct from any others
     that have already been requested or implemented.
@@ -156,22 +156,22 @@ we have two sets of special labels:
 
 | Label                                                                                           | Description                                                                                           |
 |--------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
-| ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20high) <br> ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20medium) <br> ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20low)    | Estimation of the downstream impact the proposed feature/bugfix will have.                |
-| ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/effort%3A%20high) <br> ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/effort%3A%20medium) <br> ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/effort%3A%20low)    | Estimation of effort required to implement the requested feature or fix the reported bug. |
+| ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20high) <br> ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20medium) <br> ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20low)    | Estimation of the downstream impact the proposed feature/bugfix will have.                |
+| ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/effort%3A%20high) <br> ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/effort%3A%20medium) <br> ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/effort%3A%20low)    | Estimation of effort required to implement the requested feature or fix the reported bug. |
 
 One way to understand these labels is to consider how they would apply to an imaginary issue.
 For example, if -- after a release -- a bug is identified that re-introduces a previously solved issue
 (i.e., its regresses the code outputs to some undesired behavior), we might assign it the following labels:
-![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/bug)
-![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20high)
-![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/effort%3A%20low).
+![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/bug)
+![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20high)
+![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/effort%3A%20low).
 Its development priority would then be "high", since it is a low-effort, high-impact change.
 
 Long-term goals may be labelled as a combination of:
-![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/effort%3A%20high) and  ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20medium) or ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20high)
+![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/effort%3A%20high) and  ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20medium) or ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20high)
 since they will have a high-impact on the code-base, but require a medium or high amount of effort.
 Of note, issues with the labels:
- ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/impact%3A%20low) or ![GitHub labels](https://img.shields.io/github/labels/poldracklab/fmriprep/effort%3A%20high)
+ ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/impact%3A%20low) or ![GitHub labels](https://img.shields.io/github/labels/nipreps/fmriprep/effort%3A%20high)
 are less likely to be addressed because they are less likely to impact the code-base, or because they will require a very high activation energy to do so.
 
 ## Making a change
@@ -200,7 +200,7 @@ but those accepted fastest will follow a workflow similar to the following:
   add the ["upstream" fMRIPrep repository as a remote][link_addremote]
   to your locally cloned repository.  
     ```Shell
-    git remote add upstream https://github.com/poldracklab/fmriprep.git
+    git remote add upstream https://github.com/nipreps/fmriprep.git
     ```
     Make sure to [keep your fork up to date][link_updateupstreamwiki] with the upstream repository.<br />  
     For example, to update your master branch on your local cloned repository:  
@@ -314,7 +314,7 @@ All the authors enlisted as *creators* participate in the revision of modificati
 
 Developers are members of a wonderful team _driving the project_.
 Names and contacts of all developers are included in the
-[``.maint/developers.json`` file](https://github.com/poldracklab/fmriprep/blob/master/.maint/developers.json)
+[``.maint/developers.json`` file](https://github.com/nipreps/fmriprep/blob/master/.maint/developers.json)
 Examples of steering activities that _drive the project_ are: actively participating in the
 follow-up meetings, leading documentation sprints, helping in the design of the tool and definition of the roadmap,
 providing resources (in the broad sense, including funding), code-review, etc.
@@ -322,7 +322,7 @@ providing resources (in the broad sense, including funding), code-review, etc.
 ### Contributors
 
 Contributors enlisted in the
-[``.maint/contributors.json`` file](https://github.com/poldracklab/fmriprep/blob/master/.maint/contributors.json)
+[``.maint/contributors.json`` file](https://github.com/nipreps/fmriprep/blob/master/.maint/contributors.json)
 actively help or have previously helped the project in a broad sense: writing code, writing documentation,
 benchmarking modules of the tool, proposing new features, helping improve the scientific
 rigor of implementations, giving out support on the different communication
@@ -335,7 +335,7 @@ Before every release, unlisted contributors will be invited again to add their n
 
 Contributors who have contributed at some point to the project but were required or they wished to
 disconnect from the project's updates and to drop-out from publications and other dissemination activities,
-are listed in the [``.maint/former.json`` file](https://github.com/poldracklab/fmriprep/blob/master/.maint/former.json).
+are listed in the [``.maint/former.json`` file](https://github.com/nipreps/fmriprep/blob/master/.maint/former.json).
 
 ### Publications
 
@@ -375,7 +375,7 @@ You're awesome. :wave::smiley:
     [MetPy project](https://github.com/Unidata/MetPy).
 
 [link_github]: https://github.com/
-[link_fMRIPrep]: https://github.com/poldracklab/fmriprep
+[link_fMRIPrep]: https://github.com/nipreps/fmriprep
 [link_signupinstructions]: https://help.github.com/articles/signing-up-for-a-new-github-account
 
 [link_neurostars]: https://neurostars.org/tags/fmriprep
@@ -388,13 +388,13 @@ You're awesome. :wave::smiley:
 [markdown]: https://daringfireball.net/projects/markdown
 [rick_roll]: https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
-[link_issues]: https://github.com/poldracklab/fmriprep/issues
-[link_labels]: https://github.com/poldracklab/fmriprep/labels
+[link_issues]: https://github.com/nipreps/fmriprep/issues
+[link_labels]: https://github.com/nipreps/fmriprep/labels
 [link_discussingissues]: https://help.github.com/articles/discussing-projects-in-issues-and-pull-requests
 
-[link_bugs]: https://github.com/poldracklab/fmriprep/labels/bug
-[link_firstissue]: https://github.com/poldracklab/fmriprep/labels/good%20first%20issue
-[link_enhancement]: https://github.com/poldracklab/fmriprep/labels/enhancement
+[link_bugs]: https://github.com/nipreps/fmriprep/labels/bug
+[link_firstissue]: https://github.com/nipreps/fmriprep/labels/good%20first%20issue
+[link_enhancement]: https://github.com/nipreps/fmriprep/labels/enhancement
 
 [link_pullrequest]: https://help.github.com/articles/creating-a-pull-request-from-a-fork
 [link_fork]: https://help.github.com/articles/fork-a-repo/
@@ -408,19 +408,19 @@ You're awesome. :wave::smiley:
 [link_add_commit_push]: https://help.github.com/articles/adding-a-file-to-a-repository-using-the-command-line
 [link_updateupstreamwiki]: https://help.github.com/articles/syncing-a-fork/
 [link_stemmrolemodels]: https://github.com/KirstieJane/STEMMRoleModels
-[link_zenodo]: https://github.com/poldracklab/fmriprep/blob/master/.zenodo.json
-[link_update_script]: https://github.com/poldracklab/fmriprep/blob/master/.maintenance/update_zenodo.py
+[link_zenodo]: https://github.com/nipreps/fmriprep/blob/master/.zenodo.json
+[link_update_script]: https://github.com/nipreps/fmriprep/blob/master/.maintenance/update_zenodo.py
 [link_devel]: https://fmriprep.readthedocs.io/en/latest/contributors.html
 [link_fmriprep]: http://fmriprep.org
 [link_bidsapps]: https://bids-apps.neuroimaging.io
 [link_mattermost]: https://mattermost.brainhack.org/brainhack/channels/fmriprep
 [link_aroma]: https://fmriprep.readthedocs.io/en/stable/workflows.html#ica-aroma
 
-[enh_ex]: https://github.com/poldracklab/fmriprep/pull/1508
-[fix_ex]: https://github.com/poldracklab/fmriprep/pull/1378
-[tst_ex]: https://github.com/poldracklab/fmriprep/pull/1098
-[doc_ex]: https://github.com/poldracklab/fmriprep/pull/1515
-[sty_ex]: https://github.com/poldracklab/fmriprep/pull/675
-[ref_ex]: https://github.com/poldracklab/fmriprep/pull/816
-[ci_ex]: https://github.com/poldracklab/fmriprep/pull/1048
-[maint_ex]: https://github.com/poldracklab/fmriprep/pull/1239
+[enh_ex]: https://github.com/nipreps/fmriprep/pull/1508
+[fix_ex]: https://github.com/nipreps/fmriprep/pull/1378
+[tst_ex]: https://github.com/nipreps/fmriprep/pull/1098
+[doc_ex]: https://github.com/nipreps/fmriprep/pull/1515
+[sty_ex]: https://github.com/nipreps/fmriprep/pull/675
+[ref_ex]: https://github.com/nipreps/fmriprep/pull/816
+[ci_ex]: https://github.com/nipreps/fmriprep/pull/1048
+[maint_ex]: https://github.com/nipreps/fmriprep/pull/1239

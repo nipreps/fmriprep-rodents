@@ -323,7 +323,7 @@ states* are removed before generating the cosine regressors.
       the `BrainVoyager User Guide
       <https://www.brainvoyager.com/bvqx/doc/UsersGuide/Preprocessing/TemporalHighPassFiltering.html>`_.
     - `This comment
-      <https://github.com/poldracklab/fmriprep/issues/1899#issuecomment-561687460>`__
+      <https://github.com/nipreps/fmriprep/issues/1899#issuecomment-561687460>`__
       on an issue regarding CompCor regressors.
 
 **CompCor confounds**.
@@ -404,7 +404,7 @@ For CompCor decompositions, entries include:
 .. caution::
     Similarly, if you are using anatomical or temporal CompCor it may not make sense
     to use the ``csf``, or ``white_matter`` global regressors -
-    see `#1049 <https://github.com/poldracklab/fmriprep/issues/1049>`_.
+    see `#1049 <https://github.com/nipreps/fmriprep/issues/1049>`_.
     Conversely, using the overall ``global_signal`` confound in addition to CompCor's
     regressors can be beneficial (see [Parkes2018]_).
 
@@ -433,9 +433,9 @@ ICA-AROMA can be enabled with the flag ``--use-aroma``.
 
     Additionally, as per [Hallquist2013]_ and [Lindquist2019]_, when using AROMA-cleaned data
     most of the confound regressors should be recalculated (this feature is a work-in-progress,
-    follow up on `#1905 <https://github.com/poldracklab/fmriprep/issues/1905>`__).
+    follow up on `#1905 <https://github.com/nipreps/fmriprep/issues/1905>`__).
     Surprisingly, `our simulations
-    <https://github.com/poldracklab/fmriprep-notebooks/blob/9933a628dfb759dc73e61701c144d67898b92de0/05%20-%20Discussion%20AROMA%20confounds%20-%20issue-817%20%5BJ.%20Kent%5D.ipynb>`__
+    <https://github.com/nipreps/fmriprep-notebooks/blob/9933a628dfb759dc73e61701c144d67898b92de0/05%20-%20Discussion%20AROMA%20confounds%20-%20issue-817%20%5BJ.%20Kent%5D.ipynb>`__
     (with thanks to JD. Kent) suggest that using the confounds as currently calculated by
     *fMRIPrep* --before denoising-- would be just fine.
 

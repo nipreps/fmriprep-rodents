@@ -6,16 +6,16 @@ At the moment, only rats are fully-supported.
 However, the vision is to generalize the preprocessing to other rodents,
 starting with mice.
 
-.. image:: https://circleci.com/gh/poldracklab/fmriprep-rodents/tree/master.svg?style=shield
-  :target: https://circleci.com/gh/poldracklab/fmriprep-rodents/tree/master
+.. image:: https://circleci.com/gh/nipreps/fmriprep-rodents/tree/master.svg?style=shield
+  :target: https://circleci.com/gh/nipreps/fmriprep-rodents/tree/master
 
-.. image:: https://github.com/poldracklab/fmriprep-rodents/workflows/Python%20package/badge.svg
-  :target: https://github.com/poldracklab/fmriprep-rodents/actions
+.. image:: https://github.com/nipreps/fmriprep-rodents/workflows/Python%20package/badge.svg
+  :target: https://github.com/nipreps/fmriprep-rodents/actions
 
 About
 -----
 Development was initiated by (soon-to-be) Dr. E. MacNicol in a research visit to the 
-`Poldrack lab at Stanford University <https://poldracklab.stanford.edu/>`__.
+`Poldrack lab at Stanford University <https://nipreps.stanford.edu/>`__.
 Currently, it is maintained by the NiPreps community.
 
 .. image:: https://github.com/oesteban/fmriprep/raw/38a63e9504ab67812b63813c5fe9af882109408e/docs/_static/fmriprep-workflow-all.png

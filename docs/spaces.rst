@@ -123,7 +123,7 @@ that do not generate *standardized* coordinate spaces:
     head-motion, and susceptibility-distortion corrections.
     These keywords are experimental, and expected to change because
     **additional nonstandard spaces** are currently being discussed
-    `here <https://github.com/poldracklab/fmriprep/issues/1604>`__.
+    `here <https://github.com/nipreps/fmriprep/issues/1604>`__.
 
 Modifiers are not allowed when providing nonstandard spaces.
 

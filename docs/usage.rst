@@ -71,7 +71,7 @@ file on the host system: ::
         -v $HOME/fullds005:/data:ro \
         -v $HOME/dockerout:/out \
         -v $HOME/.licenses/freesurfer/license.txt:/opt/freesurfer/license.txt \
-        poldracklab/fmriprep:latest \
+        nipreps/fmriprep:latest \
         /data /out/out \
         participant \
         --ignore fieldmaps
@@ -82,7 +82,7 @@ Using FreeSurfer can also be enabled when using ``fmriprep-docker``: ::
         /path/to/data/dir /path/to/output/dir participant
     RUNNING: docker run --rm -it -v /path/to/data/dir:/data:ro \
         -v /home/user/.licenses/freesurfer/license.txt:/opt/freesurfer/license.txt \
-        -v /path/to_output/dir:/out poldracklab/fmriprep:1.0.0 \
+        -v /path/to_output/dir:/out nipreps/fmriprep:1.0.0 \
         /data /out participant
     ...
 
@@ -94,7 +94,7 @@ would be equivalent to the latest example: ::
     $ fmriprep-docker /path/to/data/dir /path/to/output/dir participant
     RUNNING: docker run --rm -it -v /path/to/data/dir:/data:ro \
         -v /home/user/.licenses/freesurfer/license.txt:/opt/freesurfer/license.txt \
-        -v /path/to_output/dir:/out poldracklab/fmriprep:1.0.0 \
+        -v /path/to_output/dir:/out nipreps/fmriprep:1.0.0 \
         /data /out participant
     ...
 
@@ -137,7 +137,7 @@ Before version 20.1.0, preprocessing this dataset would be hard for two limitati
     :abbr:`HPC (high-performance computing)` resources), the amount of data to be processed surely
     would exceed the time limitations per job (and/or related issues, such as restarting from where
     it left before); or
-  * if the processing were `split in sessions <https://github.com/poldracklab/fmriprep/issues/1175>`__,
+  * if the processing were `split in sessions <https://github.com/nipreps/fmriprep/issues/1175>`__,
     then *fMRIPrep* would attempt to re-process the anatomical information for every session.
 
 Because processing this emerging type of datasets (*densely sampled neuroimaging*) was impractical with
@@ -173,7 +173,7 @@ page.
 The documentation of this project is found here: http://fmriprep.readthedocs.org/en/latest/.
 
 All bugs, concerns and enhancement requests for this software can be submitted here:
-https://github.com/poldracklab/fmriprep/issues.
+https://github.com/nipreps/fmriprep/issues.
 
 If you have a problem or would like to ask a question about how to use *fMRIPRep*,
 please submit a question to `NeuroStars.org <http://neurostars.org/tags/fmriprep>`_ with an ``fmriprep`` tag.

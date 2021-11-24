@@ -14,7 +14,7 @@ In order to run *fMRIPrep* Docker images, the Docker Engine must be installed
 If you used *fMRIPrep* via Docker in the past, you might need to pull down a
 more recent version of the image: ::
 
-    $ docker pull poldracklab/fmriprep:<latest-version>
+    $ docker pull nipreps/fmriprep:<latest-version>
 
 You can run *fMRIPrep* interacting directly with the Docker Engine via the `docker run`
 command line, or you can use a lightweight wrapper we created for convenience.
@@ -31,7 +31,7 @@ needed, e.g.::
 
     $ fmriprep-docker /path/to/data/dir /path/to/output/dir participant
     RUNNING: docker run --rm -it -v /path/to/data/dir:/data:ro \
-        -v /path/to_output/dir:/out poldracklab/fmriprep:1.0.0 \
+        -v /path/to_output/dir:/out nipreps/fmriprep:1.0.0 \
         /data /out participant
     ...
 
@@ -84,7 +84,7 @@ You may also invoke ``docker`` directly::
     $ docker run -ti --rm \
         -v path/to/data:/data:ro \
         -v path/to/output:/out \
-        poldracklab/fmriprep:<latest-version> \
+        nipreps/fmriprep:<latest-version> \
         /data /out/out \
         participant
 
@@ -94,7 +94,7 @@ For example: ::
         -v $HOME/ds005:/data:ro \
         -v $HOME/ds005/derivatives:/out \
         -v $HOME/tmp/ds005-workdir:/work \
-        poldracklab/fmriprep:<latest-version> \
+        nipreps/fmriprep:<latest-version> \
         /data /out/fmriprep-<latest-version> \
         participant \
         -w /work
@@ -108,7 +108,7 @@ executable in a bare-metal installation: ::
         -v $HOME/ds005:/data:ro \                | are equivalent
         -v $HOME/ds005/derivatives:/out \        | to the fmriprep
         -v $HOME/tmp/ds005-workdir:/work \       | executable.
-        poldracklab/fmriprep:<latest-version> \  |
+        nipreps/fmriprep:<latest-version> \  |
         \
         /data /out/fmriprep-<latest-version> \   | These lines
         participant \                            | correspond to

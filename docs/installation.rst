@@ -80,7 +80,7 @@ If you have a functional installation, then you should obtain the following outp
 After checking your Docker Engine is capable of running Docker images, then go ahead
 and `check out our documentation <docker.html>`_ to run the *fMRIPrep* image.
 The list of Docker images ready to use is found at the `Docker Hub`_,
-under the ``poldracklab/fmriprep`` identifier.
+under the ``nipreps/fmriprep`` identifier.
 
 The ``fmriprep-docker`` wrapper
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -118,7 +118,7 @@ Make sure all of *fMRIPRep*'s `External Dependencies`_ are installed.
 These tools must be installed and their binaries available in the
 system's ``$PATH``.
 A relatively interpretable description of how your environment can be set-up
-is found in the `Dockerfile <https://github.com/poldracklab/fmriprep/blob/master/Dockerfile>`_.
+is found in the `Dockerfile <https://github.com/nipreps/fmriprep/blob/master/Dockerfile>`_.
 As an additional installation setting, FreeSurfer requires a license file (see :ref:`fs_license`).
 
 On a functional Python 3.7 (or above) environment with ``pip`` installed,

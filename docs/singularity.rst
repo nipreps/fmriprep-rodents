@@ -12,7 +12,7 @@ If the version of Singularity installed on your :abbr:`HPC (High-Performance Com
 system is modern enough you can create Singularity image directly on the system.
 This is as simple as: ::
 
-    $ singularity build /my_images/fmriprep-<version>.simg docker://poldracklab/fmriprep:<version>
+    $ singularity build /my_images/fmriprep-<version>.simg docker://nipreps/fmriprep:<version>
 
 where ``<version>`` should be replaced with the desired version of *fMRIPrep* that you
 want to download.
@@ -27,7 +27,7 @@ You will need an active internet connection and some time. ::
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v D:\host\path\where\to\output\singularity\image:/output \
         singularityware/docker2singularity \
-        poldracklab/fmriprep:<version>
+        nipreps/fmriprep:<version>
 
 Where ``<version>`` should be replaced with the desired version of *fMRIPrep* that you want
 to download.
@@ -39,12 +39,12 @@ For \*nix users the command translates as follows: ::
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v /absolute/path/to/output/folder:/output \
         singularityware/docker2singularity \
-        poldracklab/fmriprep:<version>
+        nipreps/fmriprep:<version>
 
 
 Transfer the resulting Singularity image to the HPC, for example, using ``scp``. ::
 
-    $ scp poldracklab_fmriprep*.img user@hcpserver.edu:/my_images
+    $ scp nipreps_fmriprep*.img user@hcpserver.edu:/my_images
 
 Running a Singularity Image
 ---------------------------
@@ -144,7 +144,7 @@ For example: ::
    very limited access to the minimum necessary resources.
    In other words, it is preferred to bind just one subdirectory of ``$HOME`` than
    the full ``$HOME`` directory of the host (see `\#1778 (comment)
-   <https://github.com/poldracklab/fmriprep/issues/1778#issuecomment-538009563>`_).
+   <https://github.com/nipreps/fmriprep/issues/1778#issuecomment-538009563>`_).
 
 **Relevant aspects of the** ``$HOME`` **directory within the container**.
 By default, Singularity will bind the user's ``$HOME`` directory in the host
@@ -214,7 +214,7 @@ you can try the following:
 ``VerifiedHTTPSConnection ... Failed to establish a new connection: [Errno 110] Connection timed out``.
 If you encounter an error like this, probably you'll need to set up an http proxy exporting
 ``SINGULARITYENV_http_proxy`` (see `\#1778 (comment)
-<https://github.com/poldracklab/fmriprep/issues/1778#issuecomment-532297622>`__).
+<https://github.com/nipreps/fmriprep/issues/1778#issuecomment-532297622>`__).
 For example:
 ::
 

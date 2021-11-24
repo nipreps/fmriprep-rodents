@@ -30,7 +30,7 @@ These images imply an unknown level of preprocessing (e.g. was it already bias-f
 which makes it difficult to decide on best-practices for further processing.
 Hence, supporting such images was considered very low priority for *fMRIPrep*.
 For example, see `#707 <https://github.com/nipreps/smriprep/issues/12>`_ and an illustration of
-downstream consequences in `#939 <https://github.com/poldracklab/fmriprep/issues/939>`_.
+downstream consequences in `#939 <https://github.com/nipreps/fmriprep/issues/939>`_.
 
 So for OpenFMRI, we've been excluding these subjects, and for user-supplied data, we would recommend
 reverting to the original, defaced, T1w images to ensure more uniform preprocessing.
@@ -165,7 +165,7 @@ On the other hand, if the project is about to start, then we strongly recommend
 using the latest version of the tool.
 
 In any case, if you can find your release listed as *flagged* in `this file
-of our repo <https://github.com/poldracklab/fmriprep/blob/master/.versions.json>`__,
+of our repo <https://github.com/nipreps/fmriprep/blob/master/.versions.json>`__,
 then please update as soon as possible.
 
 I'm running *fMRIPrep* via Singularity containers - how can I troubleshoot problems?
@@ -262,7 +262,7 @@ To select images that have any non-empty value for an entity use string: ``'*'``
 
 Can *fMRIPrep* continue to run after encountering an error?
 -----------------------------------------------------------
-(Context: `#1756 <https://github.com/poldracklab/fmriprep/issues/1756>`__)
+(Context: `#1756 <https://github.com/nipreps/fmriprep/issues/1756>`__)
 Yes, although it requires access to previously computed intermediate results.
 *fMRIPrep* is built on top of Nipype_, which uses a temporary folder to store the interim
 results of the workflow.

@@ -41,16 +41,16 @@ jobs:
                 echo "Pulling from local registry"
                 docker tag localhost:5000/ubuntu ubuntu:xenial-20200114
                 docker pull localhost:5000/fmriprep-rodents
-                docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
-                docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents
+                docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
+                docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents
             else
                 echo "Pulling from Docker Hub"
                 docker pull ubuntu:xenial-20200114
                 docker tag ubuntu:xenial-20200114 localhost:5000/ubuntu
                 docker push localhost:5000/ubuntu
-                docker pull poldracklab/fmriprep-rodents:latest || (
-                        docker pull poldracklab/fmriprep:latest &&
-                        docker tag poldracklab/fmriprep:latest poldracklab/fmriprep-rodents:latest
+                docker pull nipreps/fmriprep-rodents:latest || (
+                        docker pull nipreps/fmriprep:latest &&
+                        docker tag nipreps/fmriprep:latest nipreps/fmriprep-rodents:latest
                         )
             fi
       - run:
@@ -74,8 +74,8 @@ jobs:
             # Build docker image
             e=1 && for i in {1..5}; do
               docker build --rm \
-                --cache-from=poldracklab/fmriprep-rodents \
-                -t poldracklab/fmriprep-rodents:latest \
+                --cache-from=nipreps/fmriprep-rodents \
+                -t nipreps/fmriprep-rodents:latest \
                 --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
                 --build-arg VCS_REF=`git rev-parse --short HEAD` \
                 --build-arg VERSION="${CIRCLE_TAG:-$THISVERSION}" . \
@@ -85,7 +85,7 @@ jobs:
           name: Docker push to local registry
           no_output_timeout: 40m
           command: |
-            docker tag poldracklab/fmriprep-rodents:latest localhost:5000/fmriprep-rodents
+            docker tag nipreps/fmriprep-rodents:latest localhost:5000/fmriprep-rodents
             docker push localhost:5000/fmriprep-rodents
       - run:
           name: Docker registry garbage collection
@@ -211,7 +211,7 @@ jobs:
           name: Pull images from local registry
           command: |
             docker pull localhost:5000/fmriprep-rodents
-            docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+            docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
 
       - restore_cache:
           keys:
@@ -238,7 +238,7 @@ jobs:
                 -v /tmp/templateflow:/home/fmriprep/.cache/templateflow \
                 -v /tmp/${DATASET}/work:/work \
                 --user $(id -u):$(id -g) \
-                poldracklab/fmriprep-rodents:latest /data /out participant -vv \
+                nipreps/fmriprep-rodents:latest /data /out participant -vv \
                 -w /work --sloppy --anat-only \
                 --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
       - store_artifacts:
@@ -261,7 +261,7 @@ jobs:
                 -v /tmp/templateflow:/home/fmriprep/.cache/templateflow \
                 -v /tmp/${DATASET}/work:/work \
                 --user $(id -u):$(id -g) \
-                poldracklab/fmriprep-rodents:latest /data /out participant -vv \
+                nipreps/fmriprep-rodents:latest /data /out participant -vv \
                 -w /work --sloppy \
                 --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
       - store_artifacts:
@@ -322,14 +322,14 @@ jobs:
   #         name: Pull images from local registry
   #         command: |
   #           docker pull localhost:5000/fmriprep-rodents
-  #           docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+  #           docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
   #     - run:
   #         name: Run fMRIPrep tests
   #         no_output_timeout: 2h
   #         command: |
   #           docker run -ti --rm=false \
   #             -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
-  #             --entrypoint="pytest" poldracklab/fmriprep-rodents:latest \
+  #             --entrypoint="pytest" nipreps/fmriprep-rodents:latest \
   #             /src/fmriprep/fprodents -svx --doctest-modules
   #     - store_artifacts:
   #         path: /tmp/data/reports
@@ -380,7 +380,7 @@ jobs:
   #     - run:
   #         name: Check whether image should be deployed to Docker Hub
   #         command: |
-  #           if [[ "$CIRCLE_PROJECT_USERNAME" != "poldracklab" ]]; then
+  #           if [[ "$CIRCLE_PROJECT_USERNAME" != "nipreps" ]]; then
   #             echo "Nothing to deploy for $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME."
   #             circleci step halt
   #           fi
@@ -410,15 +410,15 @@ jobs:
   #         name: Pull images from local registry
   #         command: |
   #           docker pull localhost:5000/fmriprep-rodents
-  #           docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+  #           docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
   #     - run:
   #         name: Deploy to Docker Hub
   #         no_output_timeout: 40m
   #         command: |
   #           if [[ -n "$DOCKER_PASS" ]]; then
   #             docker login -u $DOCKER_USER -p $DOCKER_PASS
-  #             docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
-  #             docker push poldracklab/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
+  #             docker tag nipreps/fmriprep-rodents nipreps/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
+  #             docker push nipreps/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
   #           fi
 
   # deploy_docker:
@@ -452,19 +452,19 @@ jobs:
   #         name: Pull images from local registry
   #         command: |
   #           docker pull localhost:5000/fmriprep-rodents
-  #           docker tag localhost:5000/fmriprep-rodents poldracklab/fmriprep-rodents:latest
+  #           docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
   #     - run:
   #         name: Deploy to Docker Hub
   #         no_output_timeout: 40m
   #         command: |
   #           if [[ -n "$DOCKER_PASS" ]]; then
   #             docker login -u $DOCKER_USER -p $DOCKER_PASS
-  #             docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:unstable
-  #             docker push poldracklab/fmriprep-rodents:unstable
+  #             docker tag nipreps/fmriprep-rodents nipreps/fmriprep-rodents:unstable
+  #             docker push nipreps/fmriprep-rodents:unstable
   #             if [[ -n "$CIRCLE_TAG" ]]; then
-  #               docker push poldracklab/fmriprep-rodents:latest
-  #               docker tag poldracklab/fmriprep-rodents poldracklab/fmriprep-rodents:$CIRCLE_TAG
-  #               docker push poldracklab/fmriprep-rodents:$CIRCLE_TAG
+  #               docker push nipreps/fmriprep-rodents:latest
+  #               docker tag nipreps/fmriprep-rodents nipreps/fmriprep-rodents:$CIRCLE_TAG
+  #               docker push nipreps/fmriprep-rodents:$CIRCLE_TAG
   #             fi
   #           fi
 
