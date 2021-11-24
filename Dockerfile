@@ -23,7 +23,7 @@
 # SOFTWARE.
 
 # Use Ubuntu 20.04 LTS
-FROM --platform=linux/amd64 ubuntu:focal-20210416
+FROM ubuntu:focal-20210416
 
 # Make apt non-interactive
 RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
