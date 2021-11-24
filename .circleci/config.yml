@@ -181,7 +181,7 @@ jobs:
                 --user $(id -u):$(id -g) \
                 nipreps/fmriprep-rodents:latest /data /out participant -vv \
                 -w /work --sloppy --anat-only \
-                --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
+                --notrack --skip-bids-validation --omp-nthreads 8 --nprocs 8
       - store_artifacts:
           path: /tmp/nirodents-bold-se/anatomical
       - save_cache:
