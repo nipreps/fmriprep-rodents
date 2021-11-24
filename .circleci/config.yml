@@ -1,17 +1,26 @@
 version: 2.1
 orbs:
-  docker: circleci/docker@1.6.0
+  docker: circleci/docker@2.0.1
 
 jobs:
   build:
     environment:
       TZ: "/usr/share/zoneinfo/America/Los_Angeles"
-    machine:
-      image: ubuntu-2004:202107-02
-      docker_layer_caching: true
+    docker:
+      - image: cimg/python:3.9
     working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
+      - docker/install-docker-credential-helper
+      - run:
+          name: Docker authentication
+          command: |
+            if [[ -n $DOCKER_PAT ]]; then
+              echo "$DOCKER_PAT" | docker login -u $DOCKER_USER --password-stdin
+            fi
+
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Check whether build should be skipped
           command: |
@@ -23,13 +32,6 @@ jobs:
               circleci step halt
             fi
 
-      - docker/install-docker-credential-helper
-      - run:
-          name: Docker authentication
-          command: |
-            if [[ -n $DOCKER_PAT ]]; then
-              echo "$DOCKER_PAT" | docker login -u $DOCKER_USER --password-stdin
-            fi
 
       - run:
           name: Build Docker image
