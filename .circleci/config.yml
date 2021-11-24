@@ -1,58 +1,38 @@
-version: 2
-jobs:
+version: 2.1
+orbs:
+  docker: circleci/docker@2.0.1
 
+jobs:
   build:
     environment:
       TZ: "/usr/share/zoneinfo/America/Los_Angeles"
-    machine:
-      image: ubuntu-2004:202010-01
+    docker:
+      - image: cimg/python:3.9
     working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
+      - docker/install-docker-credential-helper
+      - run:
+          name: Docker authentication
+          command: |
+            if [[ -n $DOCKER_PAT ]]; then
+              echo "$DOCKER_PAT" | docker login -u $DOCKER_USER --password-stdin
+            fi
+
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Check whether build should be skipped
           command: |
-            if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
+            set -x +e
+            COMMIT_MSG="$(git log --format='format:%s' -n 1 $CIRCLE_SHA1)"
+            DOCBUILD="$(echo ${COMMIT_MSG} | grep -i -E '^docs?(\(\w+\))?:')"
+            if [ -z "$CIRCLE_TAG" -a -n "$DOCBUILD" ]; then
               echo "Only docs build"
               circleci step halt
             fi
 
-      - restore_cache:
-          keys:
-            - build-v1-{{ .Branch }}-{{ epoch }}
-            - build-v1-{{ .Branch }}-
-            - build-v1-master-
-            - build-v1-
-          paths:
-            - /tmp/docker
-      - run:
-          name: Set up Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images
-          command: |
-            set +e
-            docker pull localhost:5000/ubuntu
-            success=$?
-            set -e
-            if [[ "$success" = "0" ]]; then
-                echo "Pulling from local registry"
-                docker tag localhost:5000/ubuntu ubuntu:xenial-20200114
-                docker pull localhost:5000/fmriprep-rodents
-                docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
-                docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents
-            else
-                echo "Pulling from Docker Hub"
-                docker pull ubuntu:xenial-20200114
-                docker tag ubuntu:xenial-20200114 localhost:5000/ubuntu
-                docker push localhost:5000/ubuntu
-                docker pull nipreps/fmriprep-rodents:latest || (
-                        docker pull nipreps/fmriprep:latest &&
-                        docker tag nipreps/fmriprep:latest nipreps/fmriprep-rodents:latest
-                        )
-            fi
+
       - run:
           name: Build Docker image
           no_output_timeout: 60m
@@ -61,6 +41,7 @@ jobs:
                          sed -e 's/.* 3\./3./' -e 's/ .*//')
             pyenv local $PY3
             pip install "setuptools >= 40.8.0"
+
             # Get version, update files.
             THISVERSION=$( python3 setup.py --version )
             if [[ ${THISVERSION:0:1} == "0" ]] ; then
@@ -69,38 +50,15 @@ jobs:
               echo "the command ``git fetch --tags --verbose`` and push"
               echo "them to your fork with ``git push origin --tags``"
             fi
-            sed -i -E "s/(var version = )'[A-Za-z0-9.-]+'/\1'${CIRCLE_TAG:-$THISVERSION}'/" docs/citing.rst
-            sed -i "s/title = {FMRIPrep}/title = {FMRIPrep ${CIRCLE_TAG:-$THISVERSION}}/" fprodents/data/boilerplate.bib
+            sed -i "s/title = {FMRIPrep}/title = {fMRIPrep-rodents ${CIRCLE_TAG:-$THISVERSION}}/" fprodents/data/boilerplate.bib
+
             # Build docker image
-            e=1 && for i in {1..5}; do
-              docker build --rm \
-                --cache-from=nipreps/fmriprep-rodents \
-                -t nipreps/fmriprep-rodents:latest \
-                --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
-                --build-arg VCS_REF=`git rev-parse --short HEAD` \
-                --build-arg VERSION="${CIRCLE_TAG:-$THISVERSION}" . \
-              && e=0 && break || sleep 15
-            done && [ "$e" -eq "0" ]
-      - run:
-          name: Docker push to local registry
-          no_output_timeout: 40m
-          command: |
-            docker tag nipreps/fmriprep-rodents:latest localhost:5000/fmriprep-rodents
-            docker push localhost:5000/fmriprep-rodents
-      - run:
-          name: Docker registry garbage collection
-          command: |
-            docker exec -it registry /bin/registry garbage-collect --delete-untagged \
-              /etc/docker/registry/config.yml
+            make docker-build version="${CIRCLE_TAG:-$THISVERSION}"
 
       - persist_to_workspace:
           root: /tmp
           paths:
             - src/fmriprep-rodents
-      - save_cache:
-         key: build-v1-{{ .Branch }}-{{ epoch }}
-         paths:
-            - /tmp/docker
 
   get_data:
     docker:
@@ -172,7 +130,9 @@ jobs:
 
   smoke_test:
     machine:
-      image: circleci/classic:201711-01
+      image: ubuntu-2004:202107-02
+      docker_layer_caching: true
+      resource_class: xlarge
     working_directory: /tmp/rodent-se
     environment:
       - FS_LICENSE: /tmp/fslicense/license.txt
@@ -195,23 +155,6 @@ jobs:
 
       - attach_workspace:
           at: /tmp
-      - restore_cache:
-          keys:
-            - build-v1-{{ .Branch }}-{{ epoch }}
-            - build-v1-{{ .Branch }}-
-            - build-v1-
-          paths:
-            - /tmp/docker
-      - run:
-          name: Set-up a Docker registry
-          command: |
-            docker run -d -p 5000:5000 --restart=always --name=registry \
-                -v /tmp/docker:/var/lib/registry registry:2
-      - run:
-          name: Pull images from local registry
-          command: |
-            docker pull localhost:5000/fmriprep-rodents
-            docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
 
       - restore_cache:
           keys:
@@ -240,7 +183,7 @@ jobs:
                 --user $(id -u):$(id -g) \
                 nipreps/fmriprep-rodents:latest /data /out participant -vv \
                 -w /work --sloppy --anat-only \
-                --notrack --skip-bids-validation --omp-nthreads 2 --nprocs 2
+                --notrack --skip-bids-validation --omp-nthreads 8 --nprocs 8
       - store_artifacts:
           path: /tmp/nirodents-bold-se/anatomical
       - save_cache:
@@ -280,278 +223,6 @@ jobs:
                 -exec sh -c 'rm -f {}; touch {}' \;
       - store_artifacts:
           path: /tmp/nirodents-bold-se/work
-
-  # test_pytest:
-  #   machine:
-  #     image: circleci/classic:201711-01
-  #   working_directory: /tmp/src/fmriprep-rodents
-  #   steps:
-  #     - checkout:
-  #         path: /home/circleci/src/fmriprep-rodents
-  #     - run:
-  #         name: Check whether build should be skipped
-  #         command: |
-  #           cd /home/circleci/src/fmriprep-rodents
-  #           if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-  #             echo "Only docs build"
-  #             circleci step halt
-  #           fi
-  #           if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?tests\]' )" != "" ]]; then
-  #             echo "Skipping pytest job"
-  #             circleci step halt
-  #           fi
-
-  #     - attach_workspace:
-  #         at: /tmp
-  #     - restore_cache:
-  #         keys:
-  #           - build-v1-{{ .Branch }}-{{ epoch }}
-  #           - build-v1-{{ .Branch }}-
-  #           - build-v1-
-  #         paths:
-  #           - /tmp/docker
-  #     - restore_cache:
-  #         keys:
-  #           - data-se-v0-{{ .Branch }}-{{ .Revision }}
-  #     - run:
-  #         name: Set-up a Docker registry
-  #         command: |
-  #           docker run -d -p 5000:5000 --restart=always --name=registry \
-  #               -v /tmp/docker:/var/lib/registry registry:2
-  #     - run:
-  #         name: Pull images from local registry
-  #         command: |
-  #           docker pull localhost:5000/fmriprep-rodents
-  #           docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
-  #     - run:
-  #         name: Run fMRIPrep tests
-  #         no_output_timeout: 2h
-  #         command: |
-  #           docker run -ti --rm=false \
-  #             -e TEST_READONLY_FILESYSTEM=1 -v $HOME:/home/readonly:ro \
-  #             --entrypoint="pytest" nipreps/fmriprep-rodents:latest \
-  #             /src/fmriprep/fprodents -svx --doctest-modules
-  #     - store_artifacts:
-  #         path: /tmp/data/reports
-
-  # build_docs:
-  #   docker:
-  #     - image: python:3.7.4
-  #   working_directory: /tmp/src/fmriprep-rodents
-  #   environment:
-  #     - FSLOUTPUTTYPE: 'NIFTI'
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Check whether build should be skipped
-  #         command: |
-  #           if [[ "$( git log --format=oneline -n 1 $CIRCLE_SHA1 | grep -i -E '\[skip[ _]?docs\]' )" != "" ]]; then
-  #             echo "Skipping doc building job"
-  #             circleci step halt
-  #           fi
-  #     - run:
-  #         name: Check Python version and upgrade pip
-  #         command: |
-  #           python --version
-  #           python -m pip install -U pip
-  #     - run:
-  #         name: Install graphviz
-  #         command: |
-  #             apt-get update
-  #             apt-get install -y graphviz
-  #     - run:
-  #         name: Install Requirements (may contain pinned versions)
-  #         command: python -m pip install -r docs/requirements.txt
-  #     - run:
-  #         name: Install fMRIPrep
-  #         command: python -m pip install ".[doc]"
-  #     - run:
-  #         name: Build documentation
-  #         command: make SPHINXOPTS="-W" -C docs html
-  #     - store_artifacts:
-  #         path: /tmp/src/fmriprep-rodents/docs/_build/html
-
-  # deploy_docker_patches:
-  #   machine:
-  #     image: circleci/classic:201711-01
-  #   working_directory: /tmp/src/fmriprep-rodents
-  #   steps:
-
-  #     - run:
-  #         name: Check whether image should be deployed to Docker Hub
-  #         command: |
-  #           if [[ "$CIRCLE_PROJECT_USERNAME" != "nipreps" ]]; then
-  #             echo "Nothing to deploy for $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME."
-  #             circleci step halt
-  #           fi
-  #     - checkout:
-  #         path: /home/circleci/src/fmriprep-rodents
-  #     - run:
-  #         name: Check whether build should be skipped
-  #         command: |
-  #           cd /home/circleci/src/fmriprep-rodents
-  #           if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-  #             echo "Only docs build"
-  #             circleci step halt
-  #           fi
-  #     - restore_cache:
-  #         keys:
-  #           - build-v1-{{ .Branch }}-{{ epoch }}
-  #           - build-v1-{{ .Branch }}-
-  #           - build-v1-
-  #         paths:
-  #           - /tmp/docker
-  #     - run:
-  #         name: Setup a Docker registry
-  #         command: |
-  #           docker run -d -p 5000:5000 --restart=always --name=registry \
-  #             -v /tmp/docker:/var/lib/registry registry:2
-  #     - run:
-  #         name: Pull images from local registry
-  #         command: |
-  #           docker pull localhost:5000/fmriprep-rodents
-  #           docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
-  #     - run:
-  #         name: Deploy to Docker Hub
-  #         no_output_timeout: 40m
-  #         command: |
-  #           if [[ -n "$DOCKER_PASS" ]]; then
-  #             docker login -u $DOCKER_USER -p $DOCKER_PASS
-  #             docker tag nipreps/fmriprep-rodents nipreps/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
-  #             docker push nipreps/fmriprep-rodents:${CIRCLE_BRANCH#docker/}
-  #           fi
-
-  # deploy_docker:
-  #   machine:
-  #     image: circleci/classic:201711-01
-  #   working_directory: /tmp/src/fmriprep-rodents
-  #   steps:
-  #     - checkout:
-  #         path: /home/circleci/src/fmriprep-rodents
-  #     - run:
-  #         name: Check whether build should be skipped
-  #         command: |
-  #           cd /home/circleci/src/fmriprep-rodents
-  #           if [[ "$( git log --format='format:%s' -n 1 $CIRCLE_SHA1 | grep -i -E '^docs?(\(\w+\))?:' )" != "" ]]; then
-  #             echo "Only docs build"
-  #             circleci step halt
-  #           fi
-  #     - restore_cache:
-  #         keys:
-  #           - build-v1-{{ .Branch }}-{{ epoch }}
-  #           - build-v1-{{ .Branch }}-
-  #           - build-v1-
-  #         paths:
-  #           - /tmp/docker
-  #     - run:
-  #         name: Set-up a Docker registry
-  #         command: |
-  #           docker run -d -p 5000:5000 --restart=always --name=registry \
-  #               -v /tmp/docker:/var/lib/registry registry:2
-  #     - run:
-  #         name: Pull images from local registry
-  #         command: |
-  #           docker pull localhost:5000/fmriprep-rodents
-  #           docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
-  #     - run:
-  #         name: Deploy to Docker Hub
-  #         no_output_timeout: 40m
-  #         command: |
-  #           if [[ -n "$DOCKER_PASS" ]]; then
-  #             docker login -u $DOCKER_USER -p $DOCKER_PASS
-  #             docker tag nipreps/fmriprep-rodents nipreps/fmriprep-rodents:unstable
-  #             docker push nipreps/fmriprep-rodents:unstable
-  #             if [[ -n "$CIRCLE_TAG" ]]; then
-  #               docker push nipreps/fmriprep-rodents:latest
-  #               docker tag nipreps/fmriprep-rodents nipreps/fmriprep-rodents:$CIRCLE_TAG
-  #               docker push nipreps/fmriprep-rodents:$CIRCLE_TAG
-  #             fi
-  #           fi
-
-  # test_deploy_pypi:
-  #   docker:
-  #     - image: circleci/python:3.7.4
-  #   working_directory: /tmp/src/fmriprep-rodents
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Build fMRIPrep
-  #         command: |
-  #           pip install --user twine  # For use in checking distributions
-  #           THISVERSION=$( python setup.py --version )
-  #           THISVERSION=${THISVERSION%.dirty*}
-  #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
-  #           virtualenv --python=python build
-  #           source build/bin/activate
-  #           pip install --upgrade "pip>=19.1" numpy
-  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fprodents/VERSION
-  #           python setup.py sdist
-  #           pip wheel --no-deps -w dist/ .
-  #     - store_artifacts:
-  #         path: /tmp/src/fmriprep-rodents/dist
-  #     - run:
-  #         name: Check sdist distribution
-  #         command: |
-  #           THISVERSION=$( python setup.py --version )
-  #           THISVERSION=${THISVERSION%.dirty*}
-  #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
-  #           twine check dist/fmriprep*.tar.gz
-  #           virtualenv --python=python sdist
-  #           source sdist/bin/activate
-  #           pip install --upgrade "pip>=19.1" numpy
-  #           pip install dist/fmriprep*.tar.gz
-  #           which fmriprep-rodents | grep sdist\\/bin
-  #           INSTALLED_VERSION=$(fmriprep-rodents --version)
-  #           INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
-  #           INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
-  #           echo "VERSION: \"$THISVERSION\""
-  #           echo "INSTALLED: \"$INSTALLED_VERSION\""
-  #           test "$INSTALLED_VERSION" = "$THISVERSION"
-  #     - run:
-  #         name: Check wheel distribution
-  #         command: |
-  #           THISVERSION=$( python setup.py --version )
-  #           THISVERSION=${THISVERSION%.dirty*}
-  #           THISVERSION=${CIRCLE_TAG:-$THISVERSION}
-  #           twine check dist/fmriprep*.whl
-  #           virtualenv --python=python wheel
-  #           source wheel/bin/activate
-  #           pip install dist/fmriprep*.whl
-  #           which fmriprep-rodents | grep wheel\\/bin
-  #           INSTALLED_VERSION=$(fmriprep-rodents --version)
-  #           INSTALLED_VERSION=${INSTALLED_VERSION%$'\r'}
-  #           INSTALLED_VERSION=${INSTALLED_VERSION#*"fMRIPrep v"}
-  #           echo "VERSION: \"$THISVERSION\""
-  #           echo "INSTALLED: \"$INSTALLED_VERSION\""
-  #           test "$INSTALLED_VERSION" = "$THISVERSION"
-
-  # deploy_pypi:
-  #   docker:
-  #     - image: circleci/python:3.7.4
-  #   working_directory: /tmp/src/fmriprep-rodents
-  #   steps:
-  #     - checkout
-  #     - run:
-  #         name: Build fMRIPrep
-  #         command: |
-  #           THISVERSION=$( python setup.py --version )
-  #           virtualenv --python=python build
-  #           source build/bin/activate
-  #           pip install --upgrade "pip>=19.1"
-  #           echo "${CIRCLE_TAG:-$THISVERSION}" > fprodents/VERSION
-  #           python setup.py sdist
-  #           pip wheel --no-deps -w dist/ .
-  #     - run:
-  #         name: Upload packages to PyPI
-  #         command: |
-  #           pip install --user twine
-  #           twine upload dist/fmriprep*
-
-  # deployable:
-  #   docker:
-  #     - image: busybox:latest
-  #   steps:
-  #     - run: echo Deploying!
 
 workflows:
   version: 2
