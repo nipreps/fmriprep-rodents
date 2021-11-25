@@ -11,16 +11,6 @@ jobs:
     working_directory: /tmp/src/fmriprep-rodents
     steps:
       - checkout
-      - docker/install-docker-credential-helper
-      - run:
-          name: Docker authentication
-          command: |
-            if [[ -n $DOCKER_PAT ]]; then
-              echo "$DOCKER_PAT" | docker login -u $DOCKER_USER --password-stdin
-            fi
-
-      - setup_remote_docker:
-          docker_layer_caching: true
       - run:
           name: Check whether build should be skipped
           command: |
@@ -31,6 +21,18 @@ jobs:
               echo "Only docs build"
               circleci step halt
             fi
+            
+      - docker/install-docker-credential-helper
+      - run:
+          name: Docker authentication
+          command: |
+            if [[ -n $DOCKER_PAT ]]; then
+              echo "$DOCKER_PAT" | docker login -u $DOCKER_USER --password-stdin
+            fi
+
+      - setup_remote_docker:
+          docker_layer_caching: true
+
       - run:
           name: Pull a base image if not cached
           no_output_timeout: 60m
