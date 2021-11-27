@@ -308,6 +308,7 @@ tasks and sessions), the following preprocessing was performed.
             omp_nthreads=config.nipype.omp_nthreads,
             n4_iter=4,
             adaptive_bspline_grid=True,
+            shrink_factor=1,
         )
         bold_ref_wf.inputs.inputnode.in_files = (
             bold_file if not multiecho else bold_file[0]
