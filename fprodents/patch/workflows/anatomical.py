@@ -9,10 +9,10 @@ from niworkflows.interfaces.header import ValidateImage
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.utility import KeySelect
-from smriprep.utils.misc import apply_lut as _apply_bids_lut
 from smriprep.workflows.anatomical import init_anat_template_wf
 from templateflow.api import get_metadata, get
 
+from ...interfaces.patches import FixBiasItersFAST as FAST
 from ..interfaces import TemplateFlowSelect
 from ..utils import fix_multi_source_name
 
@@ -423,16 +423,16 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     mrg_tpms = pe.Node(niu.Merge(3), name="mrg_tpms")
 
     anat_dseg = pe.Node(
-        fsl.FAST(segments=True, no_bias=True, probability_maps=True),
+        FAST(
+            segments=True,
+            probability_maps=True,
+            bias_iters=0,
+            no_bias=True,
+        ),
         name="anat_dseg",
         mem_gb=3,
     )
-    # Change LookUp Table - BIDS wants: 0 (bg), 1 (gm), 2 (wm), 3 (csf)
-    lut_anat_dseg = pe.Node(
-        niu.Function(function=_apply_bids_lut), name="lut_anat_dseg"
-    )
 
-    lut_anat_dseg.inputs.lut = (0, 3, 2, 1)  # Maps: 0 -> 0, 3 -> 1, 2 -> 2, 1 -> 3.
     fast2bids = pe.Node(
         niu.Function(function=_probseg_fast2bids),
         name="fast2bids",
@@ -472,8 +472,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
         (xfm_wm, mrg_tpms, [('output_image', 'in2')]),
         (xfm_csf, mrg_tpms, [('output_image', 'in3')]),
         (mrg_tpms, anat_dseg, [('out', 'other_priors')]),
-        (anat_dseg, lut_anat_dseg, [('partial_volume_map', 'in_dseg')]),
-        (lut_anat_dseg, outputnode, [('out', 't2w_dseg')]),
+        (anat_dseg, outputnode, [('partial_volume_map', 't2w_dseg')]),
         (anat_dseg, fast2bids, [('partial_volume_files', 'inlist')]),
         (fast2bids, outputnode, [('out', 't2w_tpms')]),
         (outputnode, anat_derivatives_wf, [
@@ -482,7 +481,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
         ]),
         # step 5
         (anat_norm_wf, xfm_dseg, [('poutputnode.standardized', 'reference_image')]),
-        (lut_anat_dseg, xfm_dseg, [('out', 'input_image')]),
+        (anat_dseg, xfm_dseg, [('partial_volume_map', 'input_image')]),
         (anat_norm_wf, xfm_dseg, [('poutputnode.anat2std_xfm', 'transforms')]),
         (anat_norm_wf, xfm_tpms, [('poutputnode.standardized', 'reference_image')]),
         (fast2bids, xfm_tpms, [('out', 'input_image')]),
