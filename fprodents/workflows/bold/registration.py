@@ -108,9 +108,7 @@ Co-registration was configured with six degrees of freedom.
         FLIRTRPT(
             dof=bold2t1w_dof,
             generate_report=True,
-            uses_qform=True,
-            args="-basescale 1"
-        ),
+            uses_qform=True),
         name="coreg")
 
     if bold2t1w_init not in ("register", "header"):
