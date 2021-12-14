@@ -9,6 +9,7 @@ from niworkflows.interfaces.header import ValidateImage
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.utility import KeySelect
+from smriprep.utils.misc import apply_lut as _apply_bids_lut
 from smriprep.workflows.anatomical import init_anat_template_wf
 from templateflow.api import get_metadata, get
 
