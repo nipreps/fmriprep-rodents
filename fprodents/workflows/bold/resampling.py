@@ -399,7 +399,9 @@ the transforms to correct for head-motion"""
     workflow.connect([
         (inputnode, merge, [('name_source', 'header_source')]),
         (bold_transform, merge, [('out_files', 'in_files')]),
-        (inputnode, bold_transform, [(('hmc_xforms', listify), 'transforms')]),
+        (inputnode, bold_transform, [
+            (('hmc_xforms', listify), 'transforms'),
+            ('bold_ref', 'reference_image')]),
         (merge, outputnode, [('out_file', 'bold')]),
     ])
     # fmt:on
@@ -412,17 +414,13 @@ the transforms to correct for head-motion"""
         # fmt:off
         workflow.connect([
             (inputnode, bold_split, [('bold_file', 'in_file')]),
-            (bold_split, bold_transform, [
-                ('out_files', 'input_image'),
-                (('out_files', _first), 'reference_image'),
-            ])
+            (bold_split, bold_transform, [('out_files', 'input_image')])
         ])
         # fmt:on
     else:
         # fmt:off
         workflow.connect([
-            (inputnode, bold_transform, [('bold_file', 'input_image'),
-                                         (('bold_file', _first), 'reference_image')]),
+            (inputnode, bold_transform, [('bold_file', 'input_image')]),
         ])
         # fmt:on
 
