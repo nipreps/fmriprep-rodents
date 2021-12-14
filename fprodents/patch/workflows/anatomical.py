@@ -13,6 +13,7 @@ from smriprep.utils.misc import apply_lut as _apply_bids_lut
 from smriprep.workflows.anatomical import init_anat_template_wf
 from templateflow.api import get_metadata, get
 
+from ...interfaces.patches import FixBiasItersFAST as FAST
 from ..interfaces import TemplateFlowSelect
 from ..utils import fix_multi_source_name
 
@@ -423,16 +424,22 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     mrg_tpms = pe.Node(niu.Merge(3), name="mrg_tpms")
 
     anat_dseg = pe.Node(
-        fsl.FAST(segments=True, no_bias=True, probability_maps=True),
+        FAST(
+            segments=True,
+            probability_maps=True,
+            bias_iters=0,
+            no_bias=True,
+        ),
         name="anat_dseg",
         mem_gb=3,
     )
+
     # Change LookUp Table - BIDS wants: 0 (bg), 1 (gm), 2 (wm), 3 (csf)
     lut_anat_dseg = pe.Node(
         niu.Function(function=_apply_bids_lut), name="lut_anat_dseg"
     )
+    lut_anat_dseg.inputs.lut = (0, 3, 2, 1)  # Maps: 0 -> 0, 3 -> 1, 2 -> 2, 1 -> 3
 
-    lut_anat_dseg.inputs.lut = (0, 3, 2, 1)  # Maps: 0 -> 0, 3 -> 1, 2 -> 2, 1 -> 3.
     fast2bids = pe.Node(
         niu.Function(function=_probseg_fast2bids),
         name="fast2bids",
