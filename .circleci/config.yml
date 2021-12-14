@@ -37,7 +37,7 @@ jobs:
           name: Pull a base image if not cached
           no_output_timeout: 60m
           command: |
-            images=$(docker images | grep fmriprep-rodents)
+            images=$(docker images | grep fmriprep-rodents) || images=""
             if [[ "$images" == "" ]]; then
                 docker pull nipreps/fmriprep-rodents:latest
             else
