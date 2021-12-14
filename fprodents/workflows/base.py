@@ -303,6 +303,11 @@ tasks and sessions), the following preprocessing was performed.
         echo_idxs = listify(echoes)
         multiecho = len(echo_idxs) > 2
 
+        #  The default N4 shrink factor (4) appears to artificially blur values across
+        #  anisotropic voxels. Shrink factors are intended to speed up calculation
+        #  but in most cases, the extra calculation time appears to be minimal.
+        #  Similarly, the use of an asymmetric bspline grid improves performance
+        #  in anisotropic voxels. The number of N4 iterations are also reduced.
         bold_ref_wf = init_epi_reference_wf(
             auto_bold_nss=True,
             omp_nthreads=config.nipype.omp_nthreads,

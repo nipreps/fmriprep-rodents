@@ -67,7 +67,7 @@ class _FixTraitFASTInputSpec(FASTInputSpec):
         low=0,
         high=10,
         argstr="-I %d",
-        desc="number of main-loop iterations during " "bias-field removal",
+        desc="number of main-loop iterations during bias-field removal",
     )
 
 
