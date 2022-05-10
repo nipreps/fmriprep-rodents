@@ -69,7 +69,8 @@ jobs:
         python -m pip install "${{ matrix.pip }}" setuptools
         python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
         python -m pip install scikit-learn  # otherwise it attempts to build it
-        python -m pip install "matplotlib ~= 3.3.1"  # otherwise nilearn installs the latest
+        python -m pip install "matplotlib ~= 3.4.2"  # otherwise nilearn installs the latest
+        python -m pip install "networkx < 2.7" # nirodents has this pinned
         python setup.py install
         INSTALLED_VERSION=$(python -c 'import fprodents; print(fprodents.__version__, end="")')
         echo "INSTALLED: \"${INSTALLED_VERSION}\""
@@ -82,7 +83,8 @@ jobs:
         # sklearn needs these dependencies
         python -m pip install numpy scipy "Cython >= 0.28.5"
         python -m pip install scikit-learn  # otherwise it attempts to build it
-        python -m pip install "matplotlib ~= 3.3.1"  # otherwise nilearn installs the latest
+        python -m pip install "matplotlib ~= 3.4.2"  # otherwise nilearn installs the latest
+        python -m pip install "networkx < 2.7" # nirodents has this pinned
         python setup.py develop
         INSTALLED_VERSION=$(python -c 'import fprodents; print(fprodents.__version__, end="")')
         echo "INSTALLED: \"${INSTALLED_VERSION}\""
