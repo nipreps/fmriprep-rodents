@@ -23,39 +23,14 @@
 # SOFTWARE.
 
 # Use Ubuntu 20.04 LTS
-FROM ubuntu:focal-20210416
+FROM nipreps/miniconda:py38_1.4.2
 
-# Make apt non-interactive
-RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
-  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90circleci
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Prepare environment
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-                    apt-utils \
-                    autoconf \
-                    build-essential \
-                    bzip2 \
-                    ca-certificates \
-                    curl \
-                    git \
-                    libtool \
-                    locales \
-                    lsb-release \
-                    pkg-config \
-                    unzip \
-                    xvfb && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Use unicode
-RUN locale-gen C.UTF-8 || true
-ENV LANG="en_US.UTF-8" \
-    LC_ALL="en_US.UTF-8"
 
 # Installing freesurfer
 RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/6.0.1/freesurfer-Linux-centos6_x86_64-stable-pub-v6.0.1.tar.gz \
     | tar zxv --no-same-owner -C /opt \
+    --exclude='freesurfer/average' \
     --exclude='freesurfer/diffusion' \
     --exclude='freesurfer/docs' \
     --exclude='freesurfer/fsfast' \
@@ -63,16 +38,7 @@ RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/6.0.1/frees
     --exclude='freesurfer/lib/qt' \
     --exclude='freesurfer/matlab' \
     --exclude='freesurfer/mni/share/man' \
-    --exclude='freesurfer/subjects/fsaverage_sym' \
-    --exclude='freesurfer/subjects/fsaverage3' \
-    --exclude='freesurfer/subjects/fsaverage4' \
-    --exclude='freesurfer/subjects/cvs_avg35' \
-    --exclude='freesurfer/subjects/cvs_avg35_inMNI152' \
-    --exclude='freesurfer/subjects/bert' \
-    --exclude='freesurfer/subjects/lh.EC_average' \
-    --exclude='freesurfer/subjects/rh.EC_average' \
-    --exclude='freesurfer/subjects/sample-*.mgz' \
-    --exclude='freesurfer/subjects/V1_average' \
+    --exclude='freesurfer/subjects' \
     --exclude='freesurfer/trctrain'
 
 # Simulate SetUpFreeSurfer.sh
@@ -257,13 +223,6 @@ RUN curl -sSL "https://github.com/oesteban/ICA-AROMA/archive/v0.4.5.tar.gz" \
 ENV PATH="/opt/ICA-AROMA:$PATH" \
     AROMA_VERSION="0.4.5"
 
-WORKDIR /opt
-COPY --from=nipreps/miniconda@sha256:4d0dc0fabb794e9fe22ee468ae5f86c2c8c2b4cd9d7b7fdf0c134d9e13838729 /opt/conda /opt/conda
-
-RUN ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc
-
 # Set CPATH for packages relying on compiled libs (e.g. indexed_gzip)
 ENV PATH="/opt/conda/bin:$PATH" \
     CPATH="/opt/conda/include:$CPATH" \
@@ -281,9 +240,6 @@ ENV MKL_NUM_THREADS=1 \
 RUN useradd -m -s /bin/bash -G users fmriprep
 WORKDIR /home/fmriprep
 ENV HOME="/home/fmriprep"
-
-RUN echo ". /opt/conda/etc/profile.d/conda.sh" >> $HOME/.bashrc && \
-    echo "conda activate base" >> $HOME/.bashrc
 
 # Precaching atlases
 RUN python -c "import templateflow; \
