@@ -101,6 +101,7 @@ def init_single_subject_wf(subject_id):
         FreeSurfer's ``$SUBJECTS_DIR``.
 
     """
+    from nirodents.workflows.brainextraction import _bspline_grid
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
@@ -303,21 +304,25 @@ tasks and sessions), the following preprocessing was performed.
         echo_idxs = listify(echoes)
         multiecho = len(echo_idxs) > 2
 
+        bold_ref_wf = init_epi_reference_wf(
+            auto_bold_nss=True,
+            omp_nthreads=config.nipype.omp_nthreads,
+        )
+        bold_ref_wf.inputs.inputnode.in_files = (
+            bold_file if not multiecho else bold_file[0]
+        )
+        # set INU bspline grid based on voxel size
+        bspline_grid = _bspline_grid(
+            bold_file if not multiecho else bold_file[0]
+        )
+        bold_ref_wf.inputs.n4_avgs.args = bspline_grid
         #  The default N4 shrink factor (4) appears to artificially blur values across
         #  anisotropic voxels. Shrink factors are intended to speed up calculation
         #  but in most cases, the extra calculation time appears to be minimal.
         #  Similarly, the use of an asymmetric bspline grid improves performance
         #  in anisotropic voxels. The number of N4 iterations are also reduced.
-        bold_ref_wf = init_epi_reference_wf(
-            auto_bold_nss=True,
-            omp_nthreads=config.nipype.omp_nthreads,
-            n4_iter=4,
-            adaptive_bspline_grid=True,
-            shrink_factor=1,
-        )
-        bold_ref_wf.inputs.inputnode.in_files = (
-            bold_file if not multiecho else bold_file[0]
-        )
+        bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
+        bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
 
         func_preproc_wf = init_func_preproc_wf(bold_file)
 
