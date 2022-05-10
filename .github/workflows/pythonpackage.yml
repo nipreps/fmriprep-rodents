@@ -67,7 +67,12 @@ jobs:
         python -m venv /tmp/setup_install
         source /tmp/setup_install/bin/activate
         python -m pip install "${{ matrix.pip }}" setuptools
-        python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
+        # this logic is needed to play nice with nitransforms (see nipreps/nitransforms#139)
+        if [[ ${{ matrix.python-version }} == "3.7" ]]; then
+          python -m pip install "numpy ~= 1.21.0" "scipy ~= 1.6.0" "Cython >= 0.28.5" # sklearn needs these
+        else
+          python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
+        fi
         python -m pip install scikit-learn  # otherwise it attempts to build it
         python -m pip install "matplotlib ~= 3.4.2"  # otherwise nilearn installs the latest
         python -m pip install "networkx < 2.7" # nirodents has this pinned
@@ -81,7 +86,12 @@ jobs:
         source /tmp/setup_develop/bin/activate
         python -m pip install "${{ matrix.pip }}" setuptools
         # sklearn needs these dependencies
-        python -m pip install numpy scipy "Cython >= 0.28.5"
+        # this logic is needed to play nice with nitransforms (see nipreps/nitransforms#139)
+        if [[ ${{ matrix.python-version }} == "3.7" ]]; then
+          python -m pip install "numpy ~= 1.21.0" "scipy ~= 1.6.0" "Cython >= 0.28.5" # sklearn needs these
+        else
+          python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
+        fi
         python -m pip install scikit-learn  # otherwise it attempts to build it
         python -m pip install "matplotlib ~= 3.4.2"  # otherwise nilearn installs the latest
         python -m pip install "networkx < 2.7" # nirodents has this pinned
