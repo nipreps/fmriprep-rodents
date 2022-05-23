@@ -27,6 +27,7 @@ from ...interfaces.reports import FunctionalSummary
 
 # BOLD workflows
 from .confounds import init_bold_confs_wf, init_carpetplot_wf
+from .hmc import init_bold_hmc_wf
 from .stc import init_bold_stc_wf
 from .t2s import init_bold_t2s_wf
 from .registration import init_bold_t1_trans_wf, init_bold_reg_wf
@@ -37,7 +38,7 @@ from .resampling import (
 from .outputs import init_func_derivatives_wf
 
 
-def init_func_preproc_wf(bold_file):
+def init_func_preproc_wf(bold_file, has_fieldmap=False):
     """
     This workflow controls the functional preprocessing stages of *fMRIPrep*.
 
@@ -124,7 +125,6 @@ def init_func_preproc_wf(bold_file):
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.nibabel import ApplyMask
     from niworkflows.interfaces.utility import KeySelect, DictMerge
-    from nipype.interfaces.freesurfer.utils import LTAConvert
 
     from ...patch.utils import extract_entities
 
@@ -140,9 +140,10 @@ def init_func_preproc_wf(bold_file):
     entities = extract_entities(bold_file)
     layout = config.execution.layout
 
+    all_metadata = [layout.get_metadata(fname) for fname in listify(bold_file)]
     # Take first file as reference
     ref_file = pop_file(bold_file)
-    metadata = layout.get_metadata(ref_file)
+    metadata = all_metadata[0]
 
     echo_idxs = listify(entities.get("echo", []))
     multiecho = len(echo_idxs) > 2
@@ -233,6 +234,12 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 "template",
                 "anat2fsnative_xfm",
                 "fsnative2anat_xfm",
+                "fmap",
+                "fmap_ref",
+                "fmap_coeff",
+                "fmap_mask",
+                "fmap_id",
+                "sdc_method",
             ]
         ),
         name="inputnode",
@@ -263,12 +270,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
     # Generate a brain-masked conversion of the t1w and bold reference images
     t1w_brain = pe.Node(ApplyMask(), name="t1w_brain")
-
-    lta_convert = pe.Node(
-        LTAConvert(
-            out_fsl=True,
-            out_itk=True
-        ), name="lta_convert")
 
     # BOLD buffer: an identity used as a pointer to either the original BOLD
     # or the STC'ed one for further use.
@@ -321,6 +322,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         FSLSplit(dimension="t"), name="bold_split", mem_gb=mem_gb["filesize"] * 3
     )
 
+    # HMC on the BOLD
+    bold_hmc_wf = init_bold_hmc_wf(
+        name="bold_hmc_wf", mem_gb=mem_gb["filesize"], omp_nthreads=omp_nthreads
+    )
+
     # calculate BOLD registration to T1w
     bold_reg_wf = init_bold_reg_wf(
         bold2t1w_dof=config.workflow.bold2t1w_dof,
@@ -329,6 +335,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         name="bold_reg_wf",
         omp_nthreads=omp_nthreads,
         use_compression=False,
+        write_report=True,
     )
 
     # apply BOLD registration to T1w
@@ -355,17 +362,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         name="bold_confounds_wf",
     )
     bold_confounds_wf.get_node("inputnode").inputs.t1_transform_flags = [False]
-
-    # Apply transforms in 1 shot
-    # Only use uncompressed output if AROMA is to be run
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(
-        mem_gb=mem_gb["resampled"],
-        omp_nthreads=omp_nthreads,
-        use_compression=not config.execution.low_mem,
-        use_fieldwarp=False,
-        name="bold_bold_trans_wf",
-    )
-    bold_bold_trans_wf.inputs.inputnode.name_source = ref_file
 
     # SLICE-TIME CORRECTION (or bypass) #############################################
     if run_stc:
@@ -440,17 +436,20 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                                   ('ref_file', 'inputnode.ref_bold_brain')]),
         (inputnode, t1w_brain, [('anat_preproc', 'in_file'),
                                 ('anat_mask', 'in_mask')]),
-        # convert bold reference LTA transform to other formats
-        (inputnode, lta_convert, [('bold_ref_xfm', 'in_lta')]),
         # BOLD buffer has slice-time corrected if it was run, original otherwise
         (boldbuffer, bold_split, [('bold_file', 'in_file')]),
         (inputnode, summary, [('n_dummy_scans', 'algo_dummy_scans')]),
+        # HMC
+        (inputnode, bold_hmc_wf, [
+            ("ref_file", "inputnode.raw_ref_image"),
+            ("bold_file", "inputnode.bold_file"),
+        ]),
         # EPI-T1 registration workflow
         (inputnode, bold_t1_trans_wf, [('bold_file', 'inputnode.name_source'),
                                        ('anat_mask', 'inputnode.t1w_mask'),
                                        ('ref_file', 'inputnode.ref_bold_brain')]),
         (t1w_brain, bold_t1_trans_wf, [('out_file', 'inputnode.t1w_brain')]),
-        (lta_convert, bold_t1_trans_wf, [('out_itk', 'inputnode.hmc_xforms')]),
+        (bold_hmc_wf, bold_t1_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
         (bold_reg_wf, bold_t1_trans_wf, [('outputnode.bold2anat', 'inputnode.bold2anat')]),
         (bold_t1_trans_wf, outputnode, [('outputnode.bold_t1', 'bold_t1'),
                                         ('outputnode.bold_t1_ref', 'bold_t1_ref')]),
@@ -462,17 +461,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         # Connect bold_confounds_wf
         (inputnode, bold_confounds_wf, [('anat_tpms', 'inputnode.anat_tpms'),
                                         ('anat_mask', 'inputnode.t1w_mask')]),
-        (lta_convert, bold_confounds_wf, [('out_fsl', 'inputnode.movpar_file')]),
+        (bold_hmc_wf, bold_confounds_wf, [
+            ("outputnode.movpar_file", "inputnode.movpar_file"),
+        ]),
         (bold_reg_wf, bold_confounds_wf, [('outputnode.anat2bold', 'inputnode.anat2bold')]),
         (inputnode, bold_confounds_wf, [('n_dummy_scans', 'inputnode.skip_vols')]),
         (t1w_mask_bold_tfm, bold_confounds_wf, [('output_image', 'inputnode.bold_mask')]),
         (bold_confounds_wf, outputnode, [('outputnode.confounds_file', 'confounds')]),
         (bold_confounds_wf, outputnode, [('outputnode.confounds_metadata', 'confounds_metadata')]),
-        # Connect bold_bold_trans_wf
-        (inputnode, bold_bold_trans_wf, [('ref_file', 'inputnode.bold_ref')]),
-        (t1w_mask_bold_tfm, bold_bold_trans_wf, [('output_image', 'inputnode.bold_mask')]),
-        (bold_split, bold_bold_trans_wf, [('out_files', 'inputnode.bold_file')]),
-        (lta_convert, bold_bold_trans_wf, [('out_itk', 'inputnode.hmc_xforms')]),
         # Summary
         (outputnode, summary, [('confounds', 'confounds_file')]),
     ])
@@ -484,8 +480,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         workflow.connect([
             (inputnode, func_derivatives_wf, [
                 ('bold_file', 'inputnode.source_file')]),
-            (bold_bold_trans_wf, bold_confounds_wf, [
-                ('outputnode.bold', 'inputnode.bold')]),
             (bold_split, bold_t1_trans_wf, [
                 ('out_files', 'inputnode.bold_split')]),
         ])
@@ -496,8 +490,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             # update name source for optimal combination
             (inputnode, func_derivatives_wf, [
                 (('bold_file', combine_meepi_source), 'inputnode.source_file')]),
-            (bold_bold_trans_wf, skullstrip_bold_wf, [
-                ('outputnode.bold', 'inputnode.in_file')]),
             (bold_t2s_wf, bold_confounds_wf, [
                 ('outputnode.bold', 'inputnode.bold')]),
             (bold_t2s_wf, bold_t1_trans_wf, [
@@ -526,17 +518,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ])
         # fmt:on
 
-    if nonstd_spaces.intersection(("func", "run", "bold", "boldref", "sbref")):
-        # fmt:off
-        workflow.connect([
-            (bold_bold_trans_wf, outputnode, [
-                ('outputnode.bold', 'bold_native')]),
-            (bold_bold_trans_wf, func_derivatives_wf, [
-                ('outputnode.bold_ref', 'inputnode.bold_native_ref'),
-                ('outputnode.bold_mask', 'inputnode.bold_mask_native')]),
-        ])
-        # fmt:on
-
     if spaces.get_spaces(nonstandard=False, dim=(3,)):
         # Apply transforms in 1 shot
         # Only use uncompressed output if AROMA is to be run
@@ -555,8 +536,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('anat2std_xfm', 'inputnode.anat2std_xfm'),
                 ('bold_file', 'inputnode.name_source')]),
             (t1w_mask_bold_tfm, bold_std_trans_wf, [('output_image', 'inputnode.bold_mask')]),
-            (lta_convert, bold_std_trans_wf, [
-                ('out_itk', 'inputnode.hmc_xforms')]),
+            (bold_hmc_wf, bold_std_trans_wf, [
+                ('outputnode.xforms', 'inputnode.hmc_xforms')]),
             (bold_reg_wf, bold_std_trans_wf, [
                 ('outputnode.bold2anat', 'inputnode.bold2anat')]),
             (bold_std_trans_wf, outputnode, [('outputnode.bold_std', 'bold_std'),
@@ -635,8 +616,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 (inputnode, ica_aroma_wf, [
                     ('bold_file', 'inputnode.name_source'),
                     ('n_dummy_scans', 'inputnode.skip_vols')]),
-                (lta_convert, ica_aroma_wf, [
-                    ('out_fsl', 'inputnode.movpar_file')]),
+                (bold_hmc_wf, ica_aroma_wf, [
+                    ('outputnode.movpar_file', 'inputnode.movpar_file')]),
                 (bold_confounds_wf, join, [
                     ('outputnode.confounds_file', 'in_file')]),
                 (bold_confounds_wf, mrg_conf_metadata,
@@ -679,8 +660,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('template', 'keys')]),
             (carpetplot_select_std, carpetplot_wf, [
                 ('std2anat_xfm', 'inputnode.std2anat_xfm')]),
-            (bold_bold_trans_wf if not multiecho else bold_t2s_wf, carpetplot_wf, [
-                ('outputnode.bold', 'inputnode.bold')]),
             (t1w_mask_bold_tfm, carpetplot_wf, [('output_image', 'inputnode.bold_mask')]),
             (bold_reg_wf, carpetplot_wf, [
                 ('outputnode.anat2bold', 'inputnode.anat2bold')]),
@@ -723,6 +702,200 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         if node.split(".")[-1].startswith("ds_report"):
             workflow.get_node(node).inputs.base_directory = output_dir
             workflow.get_node(node).inputs.source_file = ref_file
+
+    if not has_fieldmap:
+        # Finalize workflow without SDC connections
+        summary.inputs.distortion_correction = "None"
+
+        # Resample in native space in just one shot
+        bold_bold_trans_wf = init_bold_preproc_trans_wf(
+            mem_gb=mem_gb["resampled"],
+            omp_nthreads=omp_nthreads,
+            use_compression=not config.execution.low_mem,
+            use_fieldwarp=False,
+            name="bold_bold_trans_wf",
+        )
+        bold_bold_trans_wf.inputs.inputnode.name_source = ref_file
+
+        # fmt:off
+        workflow.connect([
+            # Connect bold_bold_trans_wf
+            (inputnode, bold_bold_trans_wf, [('ref_file', 'inputnode.bold_ref')]),
+            (t1w_mask_bold_tfm, bold_bold_trans_wf, [('output_image', 'inputnode.bold_mask')]),
+            (bold_split, bold_bold_trans_wf, [('out_files', 'inputnode.bold_file')]),
+            (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
+        ])
+
+        if not multiecho:
+            workflow.connect([
+                (bold_bold_trans_wf, bold_confounds_wf, [("outputnode.bold", "inputnode.bold")]),
+                (bold_bold_trans_wf, carpetplot_wf, [('outputnode.bold', 'inputnode.bold')])
+            ])
+        else:
+            workflow.connect([
+                (bold_bold_trans_wf, skullstrip_bold_wf, [
+                    ('outputnode.bold', 'inputnode.in_file')]),
+                (bold_t2s_wf, carpetplot_wf, [('outputnode.bold', 'inputnode.bold')]),
+            ])
+        # fmt:on
+
+        if nonstd_spaces.intersection(("func", "run", "bold", "boldref", "sbref")):
+            # fmt:off
+            workflow.connect([
+                (bold_bold_trans_wf, outputnode, [
+                    ('outputnode.bold', 'bold_native')]),
+                (bold_bold_trans_wf, func_derivatives_wf, [
+                    ('outputnode.bold_ref', 'inputnode.bold_native_ref'),
+                    ('outputnode.bold_mask', 'inputnode.bold_mask_native')]),
+            ])
+            # fmt:on
+        return workflow
+
+    from niworkflows.interfaces.reportlets.registration import (
+        SimpleBeforeAfterRPT as SimpleBeforeAfter,
+    )
+    from niworkflows.interfaces.utility import KeySelect
+    from sdcflows.workflows.apply.registration import init_coeff2epi_wf
+    from sdcflows.workflows.apply.correction import init_unwarp_wf
+    from ...patch.workflows.func import init_bold_reference_wf
+
+    coeff2epi_wf = init_coeff2epi_wf(
+        debug=config.execution.debug,
+        omp_nthreads=config.nipype.omp_nthreads,
+        write_coeff=True,
+    )
+    unwarp_wf = init_unwarp_wf(
+        debug=config.execution.debug,
+        omp_nthreads=config.nipype.omp_nthreads,
+    )
+    unwarp_wf.inputs.inputnode.metadata = metadata
+
+    final_boldref_wf = init_bold_reference_wf(
+        omp_nthreads=config.nipype.omp_nthreads,
+        pre_mask=True,
+        multiecho=multiecho,
+        name="bold_reference_wf",
+        gen_report=True,
+    )
+
+    sdc_report = pe.Node(
+        SimpleBeforeAfter(
+            before_label="Distorted",
+            after_label="Corrected",
+            dismiss_affine=True,
+        ),
+        name="sdc_report",
+        mem_gb=0.1,
+    )
+
+    ds_report_sdc = pe.Node(
+        DerivativesDataSink(
+            base_directory=output_dir,
+            desc="sdc",
+            suffix="bold",
+            datatype="figures",
+            dismiss_entities=("echo",),
+        ),
+        name="ds_report_sdc",
+        run_without_submitting=True,
+    )
+
+    # fmt:off
+    workflow.connect([
+        (inputnode, coeff2epi_wf, [
+            (("fmap_ref", pop_file), "inputnode.fmap_ref"),
+            ("fmap_coeff", "inputnode.fmap_coeff"),
+            ("fmap_mask", "inputnode.fmap_mask"),
+            ("ref_file", "inputnode.target_ref")]),
+        (inputnode, summary, [(("sdc_method", pop_file), "distortion_correction")]),
+        (t1w_mask_bold_tfm, coeff2epi_wf, [('output_image', 'inputnode.target_mask')]),
+        (t1w_mask_bold_tfm, final_boldref_wf, [('output_image', 'inputnode.bold_mask')]),
+        (coeff2epi_wf, unwarp_wf, [("outputnode.fmap_coeff", "inputnode.fmap_coeff")]),
+        (bold_hmc_wf, unwarp_wf, [("outputnode.xforms", "inputnode.hmc_xforms")]),
+        (inputnode, sdc_report, [("ref_file", "before")]),
+        (bold_split, unwarp_wf, [("out_files", "inputnode.distorted")]),
+        (final_boldref_wf, sdc_report, [
+            ("outputnode.ref_image", "after"),
+            ("outputnode.bold_mask", "wm_seg")]),
+        (inputnode, ds_report_sdc, [("bold_file", "source_file")]),
+        (sdc_report, ds_report_sdc, [("out_report", "in_file")]),
+    ])
+    # fmt:on
+
+    if not multiecho:
+        # fmt:off
+        workflow.connect([
+            (unwarp_wf, outputnode, [("outputnode.corrected", "bold_native")]),
+            # remaining workflow connections
+            (unwarp_wf, final_boldref_wf, [("outputnode.corrected", "inputnode.bold_file")]),
+            (unwarp_wf, bold_confounds_wf, [("outputnode.corrected", "inputnode.bold")]),
+            (unwarp_wf, carpetplot_wf, [("outputnode.corrected", "inputnode.bold")]),
+            (unwarp_wf, bold_t1_trans_wf, [
+                # TEMPORARY: For the moment we can't use frame-wise fieldmaps
+                (("outputnode.fieldwarp", pop_file), "inputnode.fieldwarp"),
+            ]),
+            (unwarp_wf, bold_std_trans_wf, [
+                # TEMPORARY: For the moment we can't use frame-wise fieldmaps
+                (("outputnode.fieldwarp", pop_file), "inputnode.fieldwarp"),
+            ]),
+        ])
+        # fmt:on
+        return workflow
+
+    # Finalize connections if ME-EPI
+    join_sdc_echos = pe.JoinNode(
+        niu.IdentityInterface(
+            fields=[
+                "fieldmap",
+                "fieldwarp",
+                "corrected",
+                "corrected_ref",
+                "corrected_mask",
+            ]
+        ),
+        joinsource="echo_index",
+        joinfield=[
+            "fieldmap",
+            "fieldwarp",
+            "corrected",
+            "corrected_ref",
+            "corrected_mask",
+        ],
+        name="join_sdc_echos",
+    )
+
+    def _dpop(list_of_lists):
+        return list_of_lists[0][0]
+
+    # fmt:off
+    workflow.connect([
+        (unwarp_wf, join_echos, [
+            ("outputnode.corrected", "bold_files"),
+        ]),
+        (unwarp_wf, join_sdc_echos, [
+            ("outputnode.fieldmap", "fieldmap"),
+            ("outputnode.fieldwarp", "fieldwarp"),
+            ("outputnode.corrected", "corrected"),
+            ("outputnode.corrected_ref", "corrected_ref"),
+            ("outputnode.corrected_mask", "corrected_mask"),
+        ]),
+        # remaining workflow connections
+        (join_sdc_echos, final_boldref_wf, [
+            ("corrected", "inputnode.bold_file"),
+        ]),
+        (join_sdc_echos, bold_t2s_wf, [
+            (("corrected_mask", pop_file), "inputnode.bold_mask"),
+        ]),
+        (join_sdc_echos, bold_t1_trans_wf, [
+            # TEMPORARY: For the moment we can't use frame-wise fieldmaps
+            (("fieldwarp", _dpop), "inputnode.fieldwarp"),
+        ]),
+        (join_sdc_echos, bold_std_trans_wf, [
+            # TEMPORARY: For the moment we can't use frame-wise fieldmaps
+            (("fieldwarp", _dpop), "inputnode.fieldwarp"),
+        ]),
+    ])
+    # fmt:on
 
     return workflow
 
