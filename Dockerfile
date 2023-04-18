@@ -23,7 +23,7 @@
 # SOFTWARE.
 
 # Use Ubuntu 20.04 LTS
-FROM ubuntu:focal-20210416
+FROM nipreps/miniconda:py39_2205.0
 
 # Make apt non-interactive
 RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
@@ -157,7 +157,7 @@ ENV FSLDIR="/opt/fsl-5.0.11" \
     FSLGECUDAQ="cuda.q" \
     LD_LIBRARY_PATH="/opt/fsl-5.0.11/lib:$LD_LIBRARY_PATH"
 
-# AFNI latest (neurodocker build)
+    # AFNI latest (neurodocker build)
 RUN apt-get update -qq \
     && apt-get install -y -q --no-install-recommends \
            apt-utils \
