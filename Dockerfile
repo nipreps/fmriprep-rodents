@@ -157,17 +157,6 @@ ENV FSLDIR="/opt/fsl-5.0.11" \
     FSLGECUDAQ="cuda.q" \
     LD_LIBRARY_PATH="/opt/fsl-5.0.11/lib:$LD_LIBRARY_PATH"
 
-# Convert3D (neurodocker build)
-RUN echo "Downloading Convert3D ..." \
-    && mkdir -p /opt/convert3d-1.0.0 \
-    && curl -fsSL --retry 5 https://sourceforge.net/projects/c3d/files/c3d/1.0.0/c3d-1.0.0-Linux-x86_64.tar.gz/download \
-    | tar -xz -C /opt/convert3d-1.0.0 --strip-components 1 \
-    --exclude "c3d-1.0.0-Linux-x86_64/lib" \
-    --exclude "c3d-1.0.0-Linux-x86_64/share" \
-    --exclude "c3d-1.0.0-Linux-x86_64/bin/c3d_gui"
-ENV C3DPATH="/opt/convert3d-1.0.0" \
-    PATH="/opt/convert3d-1.0.0/bin:$PATH"
-
 # AFNI latest (neurodocker build)
 RUN apt-get update -qq \
     && apt-get install -y -q --no-install-recommends \
@@ -254,6 +243,15 @@ ENV PATH="/opt/conda/bin:$PATH" \
     LANG="C.UTF-8" \
     LC_ALL="C.UTF-8" \
     PYTHONNOUSERSITE=1
+
+RUN conda install -y -n base \
+    -c anaconda \
+    -c conda-forge \
+    convert3d=1.3.0 \
+    && sync \
+    && conda clean -afy; sync \
+    && rm -rf ~/.conda ~/.cache/pip/*; sync \
+    && ldconfig
 
 # Unless otherwise specified each process should only use one thread - nipype
 # will handle parallelization
