@@ -185,13 +185,6 @@ WORKDIR $ANTSPATH
 RUN curl -sSL "https://dl.dropbox.com/s/gwf51ykkk5bifyj/ants-Linux-centos6_x86_64-v2.3.4.tar.gz" \
     | tar -xzC $ANTSPATH --strip-components 1
 
-WORKDIR /opt
-COPY --from=nipreps/miniconda@sha256:4d0dc0fabb794e9fe22ee468ae5f86c2c8c2b4cd9d7b7fdf0c134d9e13838729 /opt/conda /opt/conda
-
-RUN ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc
-
 # Set CPATH for packages relying on compiled libs (e.g. indexed_gzip)
 ENV PATH="/opt/conda/bin:$PATH" \
     CPATH="/opt/conda/include:$CPATH" \
@@ -200,12 +193,12 @@ ENV PATH="/opt/conda/bin:$PATH" \
     LC_ALL="C.UTF-8" \
     PYTHONNOUSERSITE=1
 
-RUN conda install -y -n base \
+RUN ${CONDA_PATH}/bin/mamba install -y -n base \
     -c anaconda \
     -c conda-forge \
     convert3d=1.3.0 \
     && sync \
-    && conda clean -afy; sync \
+    && mamba clean -afy; sync \
     && rm -rf ~/.conda ~/.cache/pip/*; sync \
     && ldconfig
 
@@ -218,9 +211,6 @@ ENV MKL_NUM_THREADS=1 \
 RUN useradd -m -s /bin/bash -G users fmriprep
 WORKDIR /home/fmriprep
 ENV HOME="/home/fmriprep"
-
-RUN echo ". /opt/conda/etc/profile.d/conda.sh" >> $HOME/.bashrc && \
-    echo "conda activate base" >> $HOME/.bashrc
 
 # Precaching atlases
 RUN python -c "import templateflow; \
