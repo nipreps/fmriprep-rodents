@@ -25,33 +25,7 @@
 # Use Ubuntu 20.04 LTS
 FROM nipreps/miniconda:py39_2205.0
 
-# Make apt non-interactive
-RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
-  && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90circleci
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Prepare environment
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-                    apt-utils \
-                    autoconf \
-                    build-essential \
-                    bzip2 \
-                    ca-certificates \
-                    curl \
-                    git \
-                    libtool \
-                    locales \
-                    lsb-release \
-                    pkg-config \
-                    unzip \
-                    xvfb && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Use unicode
-RUN locale-gen C.UTF-8 || true
-ENV LANG="en_US.UTF-8" \
-    LC_ALL="en_US.UTF-8"
 
 # Installing freesurfer
 COPY docker/files/freesurfer-exclude.txt /usr/local/etc/freesurfer-exclude.txt
@@ -157,61 +131,51 @@ ENV FSLDIR="/opt/fsl-5.0.11" \
     FSLGECUDAQ="cuda.q" \
     LD_LIBRARY_PATH="/opt/fsl-5.0.11/lib:$LD_LIBRARY_PATH"
 
-    # AFNI latest (neurodocker build)
-RUN apt-get update -qq \
-    && apt-get install -y -q --no-install-recommends \
-           apt-utils \
-           ed \
-           gsl-bin \
-           libglib2.0-0 \
-           libglu1-mesa-dev \
-           libglw1-mesa \
-           libgomp1 \
-           libjpeg62 \
-           libxm4 \
-           netpbm \
-           tcsh \
-           xfonts-base \
-           xvfb \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -sSL --retry 5 -o /tmp/multiarch.deb http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/multiarch-support_2.27-3ubuntu1.2_amd64.deb \
-    && dpkg -i /tmp/multiarch.deb \
-    && rm /tmp/multiarch.deb \
-    && curl -sSL --retry 5 -o /tmp/libxp6.deb http://mirrors.kernel.org/debian/pool/main/libx/libxp/libxp6_1.0.2-2_amd64.deb \
-    && dpkg -i /tmp/libxp6.deb \
-    && rm /tmp/libxp6.deb \
-    && curl -sSL --retry 5 -o /tmp/libpng.deb http://snapshot.debian.org/archive/debian-security/20160113T213056Z/pool/updates/main/libp/libpng/libpng12-0_1.2.49-1%2Bdeb7u2_amd64.deb \
-    && dpkg -i /tmp/libpng.deb \
-    && rm /tmp/libpng.deb \
-    && apt-get install -f \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && gsl2_path="$(find / -name 'libgsl.so.19' || printf '')" \
-    && if [ -n "$gsl2_path" ]; then \
-         ln -sfv "$gsl2_path" "$(dirname $gsl2_path)/libgsl.so.0"; \
-    fi \
-    && ldconfig \
-    && echo "Downloading AFNI ..." \
-    && mkdir -p /opt/afni-latest \
+# Install AFNI latest (neurodocker build)
+ENV AFNI_DIR="/opt/afni"
+RUN echo "Downloading AFNI ..." \
+    && mkdir -p ${AFNI_DIR} \
     && curl -fsSL --retry 5 https://afni.nimh.nih.gov/pub/dist/tgz/linux_openmp_64.tgz \
-    | tar -xz -C /opt/afni-latest --strip-components 1 \
-    --exclude "linux_openmp_64/*.gz" \
-    --exclude "linux_openmp_64/funstuff" \
-    --exclude "linux_openmp_64/shiny" \
-    --exclude "linux_openmp_64/afnipy" \
-    --exclude "linux_openmp_64/lib/RetroTS" \
-    --exclude "linux_openmp_64/meica.libs" \
-    # Keep only what we use
-    && find /opt/afni-latest -type f -not \( \
-        -name "3dTshift" -or \
-        -name "3dUnifize" -or \
-        -name "3dAutomask" -or \
-        -name "3dvolreg" \) -delete
-
-ENV PATH="/opt/afni-latest:$PATH" \
+    | tar -xz -C ${AFNI_DIR} --strip-components 1
+ENV PATH="${AFNI_DIR}:$PATH" \
     AFNI_IMSAVE_WARNINGS="NO" \
-    AFNI_PLUGINPATH="/opt/afni-latest"
+    AFNI_MODELPATH="${AFNI_DIR}/models" \
+    AFNI_TTATLAS_DATASET="${AFNI_DIR}/atlases" \
+    AFNI_PLUGINPATH="${AFNI_DIR}/plugins"
+
+# Install AFNI's dependencies
+RUN ${CONDA_PATH}/bin/mamba install -c conda-forge -c anaconda \
+                            gsl                                \
+                            xorg-libxp                         \
+                            scipy=1.8                          \
+    && ${CONDA_PATH}/bin/mamba install -c sssdgc png \
+    && sync \
+    && ${CONDA_PATH}/bin/conda clean -afy; sync \
+    && rm -rf ~/.conda ~/.cache/pip/*; sync \
+    && ln -s ${CONDA_PATH}/lib/libgsl.so.25 /usr/lib/x86_64-linux-gnu/libgsl.so.19 \
+    && ln -s ${CONDA_PATH}/lib/libgsl.so.25 /usr/lib/x86_64-linux-gnu/libgsl.so.0 \
+    && ldconfig
+
+RUN apt-get update \
+ && apt-get install -y -q --no-install-recommends     \
+                    libcurl4-openssl-dev              \
+                    libgdal-dev                       \
+                    libgfortran-8-dev                 \
+                    libgfortran4                      \
+                    libglw1-mesa                      \
+                    libgomp1                          \
+                    libjpeg62                         \
+                    libnode-dev                       \
+                    libssl-dev                        \
+                    libudunits2-dev                   \
+                    libxm4                            \
+                    libxml2-dev                       \
+                    netbase                           \
+                    netpbm                            \
+                    tcsh                              \
+                    xfonts-base                       \
+ && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+ && ldconfig
 
 # Installing ANTs 2.3.3 (NeuroDocker build)
 # Note: the URL says 2.3.4 but it is actually 2.3.3
