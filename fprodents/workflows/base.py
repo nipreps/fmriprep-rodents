@@ -386,7 +386,7 @@ tasks and sessions), the following preprocessing was performed.
 
     func_preproc_wfs = []
     has_fieldmap = bool(fmap_estimators)
-    for bold_file in subject_data["bold"]:
+    for idx, bold_file in enumerate(subject_data["bold"]):
         echoes = extract_entities(bold_file).get("echo", [])
         echo_idxs = listify(echoes)
         multiecho = len(echo_idxs) > 2
@@ -394,6 +394,7 @@ tasks and sessions), the following preprocessing was performed.
         bold_ref_wf = init_epi_reference_wf(
             auto_bold_nss=True,
             omp_nthreads=config.nipype.omp_nthreads,
+            name=f"epi_reference_wf_{idx}" if len(subject_data["bold"]) > 1 else "epi_reference_wf"
         )
         bold_ref_wf.inputs.inputnode.in_files = (
             bold_file if not multiecho else bold_file[0]
@@ -411,7 +412,10 @@ tasks and sessions), the following preprocessing was performed.
         bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
         bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
 
-        skullstrip_ref = pe.Node(BrainExtraction(), name='skullstrip_ref')
+        skullstrip_ref = pe.Node(
+            BrainExtraction(),
+            name=f"skullstrip_ref_{idx}" if len(subject_data["bold"]) > 1 else "skullstrip_ref"
+        )
 
         func_preproc_wf = init_func_preproc_wf(bold_file, has_fieldmap=has_fieldmap)
         if func_preproc_wf is None:
