@@ -414,7 +414,7 @@ BIDS structure for this particular subject.
     # Overwrite ``out_path_base`` of sdcflows's DataSinks
     for node in fmap_wf.list_node_names():
         if node.split(".")[-1].startswith("ds_"):
-            fmap_wf.get_node(node).interface.out_path_base = ""
+            fmap_wf.get_node(node).interface.out_path_base = "fmriprep"
 
     # Step 3: Manually connect PEPOLAR and ANAT workflows
 
