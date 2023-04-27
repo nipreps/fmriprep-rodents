@@ -469,15 +469,75 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                 wf_inputs.in_data = [str(s.path) for s in estimator.sources]
                 wf_inputs.metadata = [s.metadata for s in estimator.sources]
 
-                pe_inputs = getattr(fmap_wf.inputs, f"wf_{estimator.bids_id}")
+                scale_topup_inputs = pe.Node(
+                    niu.Function(function=_scale_header),
+                    name="scale_topup_inputs"
+                )
+                descale_topup_fieldcoeff = pe.Node(
+                    niu.Function(function=_scale_header),
+                    name="descale_topup_fieldcoeff"
+                )
+                pe_wf = fmap_wf.get_node(f"wf_{estimator.bids_id}")
+                pe_wf.add_nodes([scale_topup_inputs,descale_topup_fieldcoeff])
                 # if pe dir is IS/SI, need to reorient to LSA for topup
                 # https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=ind1504&L=FSL&D=0&P=277030
-                pe_inputs.to_las.target_orientation = "LSA"
+                pe_wf.inputs.to_las.target_orientation = "LSA"
                 # two pass averaging is derailing averaging, so use single-pass instead
-                pe_inputs.setwise_avg.two_pass = False
-                pe_inputs.brainextraction_wf.n4.args = _bspline_grid(estimator.sources[0].path)
-                pe_inputs.brainextraction_wf.n4.shrink_factor = 1
-                pe_inputs.brainextraction_wf.n4.n_iterations = [50] * 4
+                pe_wf.inputs.setwise_avg.two_pass = False
+                # adjust n4 parameters for surface coils
+                pe_wf.inputs.brainextraction_wf.n4.args = _bspline_grid(estimator.sources[0].path)
+                pe_wf.inputs.brainextraction_wf.n4.shrink_factor = 1
+                pe_wf.inputs.brainextraction_wf.n4.n_iterations = [50] * 4
+                # add scaling for sub-mm resolution compatibility with topup
+                pe_wf.inputs.scale_topup_inputs.factor = 10.0
+                to_las = pe_wf.get_node("to_las")
+                topup = pe_wf.get_node("topup")
+                fix_coeff = pe_wf.get_node("fix_coeff")
+                # fmt: off
+                pe_wf.disconnect(to_las, "out_file", topup, "in_file")
+                pe_wf.disconnect(topup, "out_fieldcoef", fix_coeff, "in_coeff")
+                pe_wf.connect([
+                    (to_las, scale_topup_inputs, [("out_file", "in_file")]),
+                    (scale_topup_inputs, topup, [("out", "in_file")]),
+                    (topup, descale_topup_fieldcoeff, [("out_fieldcoef", "in_file")]),
+                    (descale_topup_fieldcoeff, fix_coeff, [("out", "in_coeff")]),
+                ])
+                # fmt: on
+                if config.execution.debug is False:
+                    descale_topup_corrected = pe.Node(
+                        niu.Function(function=_scale_header),
+                        name="descale_topup_corrected"
+                    )
+                    descale_topup_field = pe.Node(
+                        niu.Function(function=_scale_header),
+                        name="descale_topup_field"
+                    )
+                    descale_topup_warp = pe.MapNode(
+                        niu.Function(function=_scale_header),
+                        name="descale_topup_warp",
+                        iterfield=['in_file']
+                    )
+                    pe_wf.add_nodes([
+                        descale_topup_corrected,
+                        descale_topup_field,
+                        descale_topup_warp
+                    ])
+                    from_las = pe_wf.get_node("from_las")
+                    from_las_fmap = pe_wf.get_node("from_las_fmap")
+                    outputnode = pe_wf.get_node("outputnode")
+                    # fmt: off
+                    pe_wf.disconnect(topup, "out_corrected", from_las, "in_file")
+                    pe_wf.disconnect(topup, "out_field", from_las_fmap, "in_file")
+                    pe_wf.disconnect(topup, "out_warps", outputnode, "out_warps")
+                    pe_wf.connect([
+                        (topup, descale_topup_corrected, [("out_corrected", "in_file")]),
+                        (descale_topup_corrected, from_las, [("out", "in_file")]),
+                        (topup, descale_topup_field, [("out_field", "in_file")]),
+                        (descale_topup_field, from_las_fmap, [("out", "in_file")]),
+                        (topup, descale_topup_warp, [("out_warps", "in_file")]),
+                        (descale_topup_warp, outputnode, [("out", "out_warps")]),
+                    ])
+                    # fmt: on
             else:
                 raise NotImplementedError("Sophisticated PEPOLAR schemes are unsupported.")
 
@@ -590,13 +650,13 @@ def init_reference_workflow(bold_file):
     from ..patch.utils import extract_entities
 
     workflow = Workflow(name=f"{Path(bold_file).name.split('.')[0]}_ref_wf")
-    
+
     outputnode = pe.Node(
         niu.IdentityInterface(
             fields=["ref_file", "bold_ref_xfm", "validation_report", "n_dummy_scans"]),
         name="outputnode"
     )
-    
+
     echoes = extract_entities(bold_file).get("echo", [])
     echo_idxs = listify(echoes)
     multiecho = len(echo_idxs) > 2
@@ -631,3 +691,35 @@ def init_reference_workflow(bold_file):
     ])
     # fmt:on
     return workflow
+
+
+def _scale_header(in_file, factor=0.1):
+    from pathlib import Path
+    import nibabel as nb
+    from nipype.utils.filemanip import fname_presuffix
+
+    fname = Path(in_file)
+    img = nb.load(in_file)
+
+    # first update header zooms
+    new_hdr = img.header.copy()
+    orig_zooms = img.header.get_zooms()
+    zoom_lim = len(orig_zooms) if len(orig_zooms) <= 3 else 3
+    new_zooms = [float(zoom * factor) for zoom in orig_zooms[0:zoom_lim]]
+
+    if len(orig_zooms) > 3:
+        new_zooms = [
+            element for sublist in
+            [new_zooms, list(new_hdr.get_zooms()[3:])]
+            for element in sublist
+        ]
+    new_hdr.set_zooms(tuple(new_zooms))
+
+    # next update affine
+    new_affine = img.affine.copy()
+    new_affine[:3] *= factor
+
+    out = fname_presuffix(fname.name, suffix="_scaled", newpath=Path.cwd())
+    img.__class__(img.dataobj, new_affine, new_hdr).to_filename(out)
+
+    return out
