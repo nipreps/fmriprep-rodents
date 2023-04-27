@@ -706,6 +706,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ("ref_file", "inputnode.target_ref")]),
         (t1w_mask_bold_tfm, coeff2epi_wf, [('output_image', 'inputnode.target_mask')]),
         (t1w_mask_bold_tfm, final_boldref_wf, [('output_image', 'inputnode.bold_mask')]),
+        (inputnode, unwarp_wf, [("ref_file", "inputnode.distorted_ref")]),
         (coeff2epi_wf, unwarp_wf, [("outputnode.fmap_coeff", "inputnode.fmap_coeff")]),
         (bold_hmc_wf, unwarp_wf, [("outputnode.xforms", "inputnode.hmc_xforms")]),
         (bold_split, unwarp_wf, [("out_files", "inputnode.distorted")]),
