@@ -521,7 +521,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (inputnode, bold_std_trans_wf, [('template', 'inputnode.templates'),
                                             ('anat2std_xfm', 'inputnode.anat2std_xfm'),
                                             ('bold_file', 'inputnode.name_source')]),
-            (t1w_mask_bold_tfm, bold_std_trans_wf, [('output_image', 'inputnode.bold_mask')]),
             (bold_hmc_wf, bold_std_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
             (bold_reg_wf, bold_std_trans_wf, [('outputnode.bold2anat', 'inputnode.bold2anat')]),
             (bold_std_trans_wf, outputnode, [('outputnode.bold_std', 'bold_std'),
@@ -539,7 +538,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                                                 ('template', 'keys')]),
             (inputnode, carpetplot_wf, [('n_dummy_scans', 'inputnode.dummy_scans')]),
             (carpetplot_select_std, carpetplot_wf, [('std2anat_xfm', 'inputnode.std2anat_xfm')]),
-            (t1w_mask_bold_tfm, carpetplot_wf, [('output_image', 'inputnode.bold_mask')]),
             (bold_reg_wf, carpetplot_wf, [('outputnode.anat2bold', 'inputnode.anat2bold')]),
             (bold_confounds_wf, carpetplot_wf,
                 [('outputnode.confounds_file', 'inputnode.confounds_file')]),
@@ -618,6 +616,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (t1w_mask_bold_tfm, outputnode, [('output_image', 'bold_mask')]),
             (t1w_mask_bold_tfm, bold_confounds_wf, [('output_image', 'inputnode.bold_mask')]),
             (t1w_mask_bold_tfm, bold_bold_trans_wf, [('output_image', 'inputnode.bold_mask')]),
+            (t1w_mask_bold_tfm, bold_std_trans_wf, [('output_image', 'inputnode.bold_mask')]),
+            (t1w_mask_bold_tfm, carpetplot_wf, [('output_image', 'inputnode.bold_mask')]),
             (bold_split, bold_bold_trans_wf, [('out_files', 'inputnode.bold_file')]),
             (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
         ])
@@ -668,7 +668,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
     final_boldref_wf = init_bold_reference_wf(
         omp_nthreads=config.nipype.omp_nthreads,
-        pre_mask=True,
         multiecho=multiecho,
         name="bold_reference_wf",
         gen_report=True,
@@ -705,18 +704,19 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ("fmap_mask", "inputnode.fmap_mask"),
             ("ref_file", "inputnode.target_ref")]),
         (t1w_mask_bold_tfm, coeff2epi_wf, [('output_image', 'inputnode.target_mask')]),
-        (t1w_mask_bold_tfm, final_boldref_wf, [('output_image', 'inputnode.bold_mask')]),
         (inputnode, unwarp_wf, [("ref_file", "inputnode.distorted_ref")]),
         (coeff2epi_wf, unwarp_wf, [("outputnode.fmap_coeff", "inputnode.fmap_coeff")]),
         (bold_hmc_wf, unwarp_wf, [("outputnode.xforms", "inputnode.hmc_xforms")]),
         (bold_split, unwarp_wf, [("out_files", "inputnode.distorted")]),
         (final_boldref_wf, bold_t1_trans_wf,
             [("outputnode.ref_image", "inputnode.ref_bold_brain")]),
+        (final_boldref_wf, bold_std_trans_wf, [('outputnode.bold_mask', 'inputnode.bold_mask')]),
         (inputnode, sdc_report, [("ref_file", "before")]),
         (final_boldref_wf, sdc_report, [("outputnode.ref_image", "after"),
                                         ("outputnode.bold_mask", "wm_seg")]),
         (inputnode, ds_report_sdc, [("bold_file", "source_file")]),
         (sdc_report, ds_report_sdc, [("out_report", "in_file")]),
+        (final_boldref_wf, carpetplot_wf, [('outputnode.bold_mask', 'inputnode.bold_mask')]),
         (final_boldref_wf, bold_confounds_wf, [("outputnode.bold_mask", 'inputnode.bold_mask')]),
     ])
     # fmt:on

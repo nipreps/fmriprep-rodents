@@ -473,12 +473,16 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                     niu.Function(function=_scale_header),
                     name="scale_topup_inputs"
                 )
-                descale_topup_fieldcoeff = pe.Node(
-                    niu.Function(function=_scale_header),
-                    name="descale_topup_fieldcoeff"
+                fix_fieldcoeff_affine = pe.Node(
+                    niu.Function(function=_fix_affine_order),
+                    name="fix_fieldcoeff_affine"
+                )
+                reorient_fieldcoeff = pe.Node(
+                    niu.Function(function=_reorient),
+                    name="reorient_fieldcoeff"
                 )
                 pe_wf = fmap_wf.get_node(f"wf_{estimator.bids_id}")
-                pe_wf.add_nodes([scale_topup_inputs,descale_topup_fieldcoeff])
+                pe_wf.add_nodes([scale_topup_inputs, fix_fieldcoeff_affine, reorient_fieldcoeff])
                 # if pe dir is IS/SI, need to reorient to LSA for topup
                 # https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=ind1504&L=FSL&D=0&P=277030
                 pe_wf.inputs.to_las.target_orientation = "LSA"
@@ -493,14 +497,21 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                 to_las = pe_wf.get_node("to_las")
                 topup = pe_wf.get_node("topup")
                 fix_coeff = pe_wf.get_node("fix_coeff")
+                setwise_avg = pe_wf.get_node("setwise_avg")
+                outputnode = pe_wf.get_node("outputnode")
                 # fmt: off
                 pe_wf.disconnect(to_las, "out_file", topup, "in_file")
                 pe_wf.disconnect(topup, "out_fieldcoef", fix_coeff, "in_coeff")
+                pe_wf.disconnect(fix_coeff, "out_coeff", outputnode, "fmap_coeff")
                 pe_wf.connect([
                     (to_las, scale_topup_inputs, [("out_file", "in_file")]),
+                    (to_las, fix_fieldcoeff_affine, [("out_file", "reference_image")]),
                     (scale_topup_inputs, topup, [("out", "in_file")]),
-                    (topup, descale_topup_fieldcoeff, [("out_fieldcoef", "in_file")]),
-                    (descale_topup_fieldcoeff, fix_coeff, [("out", "in_coeff")]),
+                    (topup, fix_fieldcoeff_affine, [("out_fieldcoef", "moving_image")]),
+                    (fix_fieldcoeff_affine, fix_coeff, [("out", "in_coeff")]),
+                    (fix_coeff, reorient_fieldcoeff, [("out_coeff", "moving_image")]),
+                    (setwise_avg, reorient_fieldcoeff, [("out_file", "reference_image")]),
+                    (reorient_fieldcoeff, outputnode, [("out", "fmap_coeff")]),
                 ])
                 # fmt: on
                 if config.execution.debug is False:
@@ -524,7 +535,6 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                     ])
                     from_las = pe_wf.get_node("from_las")
                     from_las_fmap = pe_wf.get_node("from_las_fmap")
-                    outputnode = pe_wf.get_node("outputnode")
                     # fmt: off
                     pe_wf.disconnect(topup, "out_corrected", from_las, "in_file")
                     pe_wf.disconnect(topup, "out_field", from_las_fmap, "in_file")
@@ -646,7 +656,6 @@ def init_reference_workflow(bold_file):
     from niworkflows.workflows.epi.refmap import init_epi_reference_wf
     from niworkflows.utils.connections import listify
     from pathlib import Path
-    from sdcflows.interfaces.brainmask import BrainExtraction
     from ..patch.utils import extract_entities
 
     workflow = Workflow(name=f"{Path(bold_file).name.split('.')[0]}_ref_wf")
@@ -679,13 +688,11 @@ def init_reference_workflow(bold_file):
     bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
     bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
 
-    skullstrip_ref = pe.Node(BrainExtraction(),name="skullstrip_ref")
     # fmt:off
     workflow.connect([
-        (bold_ref_wf, skullstrip_ref, [('outputnode.epi_ref_file', 'in_file')]),
-        (skullstrip_ref, outputnode, [(('out_file', 'ref_file'))]),
         (bold_ref_wf, outputnode,
-            [('outputnode.xfm_files', 'bold_ref_xfm'),
+            [('outputnode.epi_ref_file', 'ref_file'),
+             ('outputnode.xfm_files', 'bold_ref_xfm'),
              ('outputnode.validation_report', 'validation_report'),
              (('outputnode.n_dummy', _pop), 'n_dummy_scans')])
     ])
@@ -721,5 +728,69 @@ def _scale_header(in_file, factor=0.1):
 
     out = fname_presuffix(fname.name, suffix="_scaled", newpath=Path.cwd())
     img.__class__(img.dataobj, new_affine, new_hdr).to_filename(out)
+
+    return out
+
+
+def _fix_affine_order(reference_image, moving_image):
+    from pathlib import Path
+    import nibabel as nb
+    from numpy import moveaxis
+    from nipype.utils.filemanip import fname_presuffix
+
+    ref = nb.load(reference_image)
+    moving = nb.load(moving_image)
+
+    ref_axis_order = nb.io_orientation(ref.affine)[:,0]
+    moving_axis_order = nb.io_orientation(moving.affine)[:,0]
+
+    # change the order of the rows based on the reference affine
+    reindex = [list(ref_axis_order).index(val) for val in moving_axis_order]
+
+    new_affine = moving.affine.copy()
+    new_affine[:3,:] = moving.affine[reindex,:]
+
+    # reorient to LAS as expected by sdcflows
+    las_ornt = nb.orientations.ornt_transform(
+        nb.io_orientation(new_affine),
+        nb.orientations.axcodes2ornt("LAS")
+    )
+    moving_las = moving.as_reoriented(las_ornt)
+
+    # reorder data matrix
+    new_data = moveaxis(
+        moving.get_fdata(),
+        moving_axis_order.astype(int),
+        ref_axis_order.astype(int)
+    )
+    out = fname_presuffix(moving_image, newpath=Path.cwd())
+
+    moving_las.__class__(
+        new_data,
+        new_affine,
+        moving.header
+    ).to_filename(out)
+
+    return out
+
+
+def _reorient(reference_image, moving_image):
+    from pathlib import Path
+    import nibabel as nb
+    from nipype.utils.filemanip import fname_presuffix
+
+    ref = nb.load(reference_image)
+    moving = nb.load(moving_image)
+
+    new_affine = moving.affine.copy()
+
+    # reorient to RAS
+    reorient = nb.orientations.ornt_transform(
+        nb.orientations.io_orientation(new_affine),
+        nb.orientations.io_orientation(ref.affine)
+    )
+
+    out = fname_presuffix(moving_image, newpath=Path.cwd())
+    moving.as_reoriented(reorient).to_filename(out)
 
     return out
