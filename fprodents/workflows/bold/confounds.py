@@ -663,19 +663,18 @@ def init_carpetplot_wf(mem_gb, metadata, name="bold_carpet_wf"):
     )
 
     workflow = Workflow(name=name)
-    # no need for segmentations if using CIFTI
     # fmt:off
     workflow.connect([
         (inputnode, mrg_xfms, [('anat2bold', 'in1'),
                                ('std2anat_xfm', 'in2')]),
         (inputnode, resample_parc, [('bold_mask', 'reference_image')]),
-        (inputnode, conf_plot, [("confounds_file", "confounds_file"),
+        (inputnode, conf_plot, [("bold", "in_nifti"),
+                                ("confounds_file", "confounds_file"),
                                 ("dummy_scans", "drop_trs")]),
         (conf_plot, ds_report_bold_conf, [('out_file', 'in_file')]),
         (conf_plot, outputnode, [('out_file', 'out_carpetplot')]),
         (mrg_xfms, resample_parc, [('out', 'transforms')]),
         # Carpetplot
-        (inputnode, conf_plot, [("bold", "in_func")]),
         (resample_parc, conf_plot, [('output_image', 'in_segm')])
     ])
     # fmt:on
