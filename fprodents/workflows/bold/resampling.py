@@ -115,6 +115,7 @@ def init_bold_std_trans_wf(
     from niworkflows.interfaces.nibabel import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     output_references = spaces.cached.get_spaces(nonstandard=False, dim=(3,))
@@ -224,7 +225,7 @@ preprocessed BOLD runs*: {tpl}.
     )
 
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
-
+    gen_final_ref = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
     # fmt:off
     workflow.connect([
         (iterablesource, split_target, [('std_target', 'in_target')]),
@@ -248,9 +249,11 @@ preprocessed BOLD runs*: {tpl}.
         (gen_ref, bold_to_std_transform, [('out_file', 'reference_image')]),
         (gen_ref, mask_std_tfm, [('out_file', 'reference_image')]),
         (mask_merge_tfms, mask_std_tfm, [('out', 'transforms')]),
+        (mask_std_tfm, gen_final_ref, [("output_image", "inputnode.bold_mask")]),
         (gen_ref, ref_std_tfm, [('out_file', 'reference_image')]),
         (mask_merge_tfms, ref_std_tfm, [('out', 'transforms')]),
         (bold_to_std_transform, merge, [('out_files', 'in_files')]),
+        (merge, gen_final_ref, [("out_file", "inputnode.bold_file")]),
     ])
     # fmt:on
 
@@ -271,7 +274,7 @@ preprocessed BOLD runs*: {tpl}.
         (iterablesource, poutputnode, [
             (('std_target', format_reference), 'spatial_reference')]),
         (merge, poutputnode, [('out_file', 'bold_std')]),
-        (ref_std_tfm, poutputnode, [('output_image', 'bold_std_ref')]),
+        (gen_final_ref, poutputnode, [('outputnode.ref_image', 'bold_std_ref')]),
         (mask_std_tfm, poutputnode, [('output_image', 'bold_mask_std')]),
         (select_std, poutputnode, [('key', 'template')]),
     ])
