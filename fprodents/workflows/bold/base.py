@@ -245,6 +245,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 "bold_std_ref",
                 "bold_mask_std",
                 "bold_native",
+                "bold_native_ref",
                 "confounds",
                 "melodic_mix",
                 "nonaggr_denoised_file",
@@ -293,6 +294,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('bold_t1_ref', 'inputnode.bold_t1_ref'),
             ('bold_mask_t1', 'inputnode.bold_mask_t1'),
             ('bold_native', 'inputnode.bold_native'),
+            ('bold_native_ref', 'inputnode.bold_native_ref'),
+            ('bold_mask', 'inputnode.bold_mask_native'),
             ('confounds', 'inputnode.confounds'),
             ('melodic_mix', 'inputnode.melodic_mix'),
             ('nonaggr_denoised_file', 'inputnode.nonaggr_denoised_file'),
@@ -486,8 +489,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         )
         # fmt:off
         workflow.connect([
+            (inputnode, boldmask_to_t1w, [('ref_file', 'reference_image')]),
             (bold_reg_wf, boldmask_to_t1w, [('outputnode.bold2anat', 'transforms')]),
-            (bold_t1_trans_wf, boldmask_to_t1w, [('outputnode.bold_mask_t1', 'reference_image')]),
             (t1w_mask_bold_tfm, boldmask_to_t1w, [('output_image', 'input_image')]),
             (boldmask_to_t1w, outputnode, [('output_image', 'bold_mask_t1')]),
         ])
@@ -613,7 +616,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             # Connect bold_bold_trans_wf
             (inputnode, bold_t1_trans_wf, [('ref_file', 'inputnode.ref_bold_brain')]),
             (inputnode, bold_bold_trans_wf, [('ref_file', 'inputnode.bold_ref')]),
-            (t1w_mask_bold_tfm, outputnode, [('output_image', 'bold_mask')]),
             (t1w_mask_bold_tfm, bold_confounds_wf, [('output_image', 'inputnode.bold_mask')]),
             (t1w_mask_bold_tfm, bold_bold_trans_wf, [('output_image', 'inputnode.bold_mask')]),
             (t1w_mask_bold_tfm, bold_std_trans_wf, [('output_image', 'inputnode.bold_mask')]),
@@ -638,10 +640,10 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         if nonstd_spaces.intersection(("func", "run", "bold", "boldref", "sbref")):
             # fmt:off
             workflow.connect([
-                (bold_bold_trans_wf, outputnode, [('outputnode.bold', 'bold_native')]),
-                (bold_bold_trans_wf, func_derivatives_wf, [
-                    ('outputnode.bold_ref', 'inputnode.bold_native_ref'),
-                    ('outputnode.bold_mask', 'inputnode.bold_mask_native')]),
+                (bold_bold_trans_wf, outputnode, [
+                    ('outputnode.bold', 'bold_native'),
+                    ('outputnode.bold_ref', 'bold_native_ref'),
+                    ('outputnode.bold_mask', 'bold_mask')]),
             ])
             # fmt:on
         return workflow
@@ -718,6 +720,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         (sdc_report, ds_report_sdc, [("out_report", "in_file")]),
         (final_boldref_wf, carpetplot_wf, [('outputnode.bold_mask', 'inputnode.bold_mask')]),
         (final_boldref_wf, bold_confounds_wf, [("outputnode.bold_mask", 'inputnode.bold_mask')]),
+        (final_boldref_wf, outputnode, [("outputnode.ref_image", "bold_native_ref"),
+                                        ("outputnode.bold_mask", "bold_mask")]),
     ])
     # fmt:on
 
