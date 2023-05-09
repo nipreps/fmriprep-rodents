@@ -469,6 +469,12 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                 wf_inputs.in_data = [str(s.path) for s in estimator.sources]
                 wf_inputs.metadata = [s.metadata for s in estimator.sources]
 
+                # add scaling for sub-mm resolution compatibility with topup
+                find_topup_factor = pe.Node(
+                    niu.Function(function=_find_scale_factor),
+                    name="find_topup_factor",
+                    run_without_submitting=True
+                )
                 scale_topup_inputs = pe.Node(
                     niu.Function(function=_scale_header),
                     name="scale_topup_inputs"
@@ -482,29 +488,36 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                     name="reorient_fieldcoeff"
                 )
                 pe_wf = fmap_wf.get_node(f"wf_{estimator.bids_id}")
-                pe_wf.add_nodes([scale_topup_inputs, fix_fieldcoeff_affine, reorient_fieldcoeff])
+                pe_wf.add_nodes([
+                    find_topup_factor,
+                    scale_topup_inputs,
+                    fix_fieldcoeff_affine,
+                    reorient_fieldcoeff
+                ])
                 # if pe dir is IS/SI, need to reorient to LSA for topup
                 # https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=ind1504&L=FSL&D=0&P=277030
                 pe_wf.inputs.to_las.target_orientation = "LSA"
+                # scale smallest zoom to 1mm for compatibility with topup
+                pe_wf.inputs.find_topup_factor.target_size = 1.0
                 # two pass averaging is derailing averaging, so use single-pass instead
                 pe_wf.inputs.setwise_avg.two_pass = False
                 # adjust n4 parameters for surface coils
                 pe_wf.inputs.brainextraction_wf.n4.args = _bspline_grid(estimator.sources[0].path)
-                pe_wf.inputs.brainextraction_wf.n4.shrink_factor = 1
                 pe_wf.inputs.brainextraction_wf.n4.n_iterations = [50] * 4
-                # add scaling for sub-mm resolution compatibility with topup
-                pe_wf.inputs.scale_topup_inputs.factor = 10.0
+                pe_wf.inputs.brainextraction_wf.n4.shrink_factor = 1
                 to_las = pe_wf.get_node("to_las")
                 topup = pe_wf.get_node("topup")
                 fix_coeff = pe_wf.get_node("fix_coeff")
                 setwise_avg = pe_wf.get_node("setwise_avg")
                 outputnode = pe_wf.get_node("outputnode")
-                # fmt: off
                 pe_wf.disconnect(to_las, "out_file", topup, "in_file")
                 pe_wf.disconnect(topup, "out_fieldcoef", fix_coeff, "in_coeff")
                 pe_wf.disconnect(fix_coeff, "out_coeff", outputnode, "fmap_coeff")
+                # fmt: off
                 pe_wf.connect([
+                    (to_las, find_topup_factor, [("out_file", "in_file")]),
                     (to_las, scale_topup_inputs, [("out_file", "in_file")]),
+                    (find_topup_factor, scale_topup_inputs, [("out", "factor")]),
                     (to_las, fix_fieldcoeff_affine, [("out_file", "reference_image")]),
                     (scale_topup_inputs, topup, [("out", "in_file")]),
                     (topup, fix_fieldcoeff_affine, [("out_fieldcoef", "moving_image")]),
@@ -515,6 +528,12 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                 ])
                 # fmt: on
                 if config.execution.debug is False:
+                    import nibabel as nb
+                    find_descale_factor = pe.Node(
+                        niu.Function(function=_find_scale_factor),
+                        name="find_descale_factor",
+                        run_without_submitting=True
+                    )
                     descale_topup_corrected = pe.Node(
                         niu.Function(function=_scale_header),
                         name="descale_topup_corrected"
@@ -529,21 +548,31 @@ Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
                         iterfield=['in_file']
                     )
                     pe_wf.add_nodes([
+                        find_descale_factor,
                         descale_topup_corrected,
                         descale_topup_field,
                         descale_topup_warp
                     ])
                     from_las = pe_wf.get_node("from_las")
                     from_las_fmap = pe_wf.get_node("from_las_fmap")
-                    # fmt: off
+                    pe_wf.inputs.find_descale_factor.target_size = min(
+                        nb.load(
+                            estimator.sources[0].path
+                        ).header.get_zooms()[:3]
+                    )
                     pe_wf.disconnect(topup, "out_corrected", from_las, "in_file")
                     pe_wf.disconnect(topup, "out_field", from_las_fmap, "in_file")
                     pe_wf.disconnect(topup, "out_warps", outputnode, "out_warps")
+                    # fmt: off
                     pe_wf.connect([
+                        (topup, find_descale_factor, [("out_corrected", "in_file")]),
+                        (find_descale_factor, descale_topup_corrected, [("out", "factor")]),
                         (topup, descale_topup_corrected, [("out_corrected", "in_file")]),
                         (descale_topup_corrected, from_las, [("out", "in_file")]),
+                        (find_descale_factor, descale_topup_field, [("out", "factor")]),
                         (topup, descale_topup_field, [("out_field", "in_file")]),
                         (descale_topup_field, from_las_fmap, [("out", "in_file")]),
+                        (find_descale_factor, descale_topup_warp, [("out", "factor")]),
                         (topup, descale_topup_warp, [("out_warps", "in_file")]),
                         (descale_topup_warp, outputnode, [("out", "out_warps")]),
                     ])
@@ -700,6 +729,15 @@ def init_reference_workflow(bold_file):
     return workflow
 
 
+def _find_scale_factor(in_file, target_size=1.0):
+    import nibabel as nb
+
+    zooms = nb.load(in_file).header.get_zooms()[:3]
+    out = target_size / min(zooms)
+
+    return out
+
+
 def _scale_header(in_file, factor=0.1):
     from pathlib import Path
     import nibabel as nb
@@ -735,7 +773,7 @@ def _scale_header(in_file, factor=0.1):
 def _fix_affine_order(reference_image, moving_image):
     from pathlib import Path
     import nibabel as nb
-    from numpy import moveaxis
+    from numpy import moveaxis, flip
     from nipype.utils.filemanip import fname_presuffix
 
     ref = nb.load(reference_image)
@@ -763,13 +801,24 @@ def _fix_affine_order(reference_image, moving_image):
         moving_axis_order.astype(int),
         ref_axis_order.astype(int)
     )
+    flip_required = las_ornt[:,1] < 1
+    if flip_required.any():
+        new_data = flip(
+            new_data,
+            tuple([idx for idx, _ in enumerate(las_ornt[:,1]) if flip_required[idx]])
+        )
+
     out = fname_presuffix(moving_image, newpath=Path.cwd())
 
-    moving_las.__class__(
+    final_image = moving_las.__class__(
         new_data,
-        new_affine,
+        moving_las.affine,
         moving.header
-    ).to_filename(out)
+    )
+    final_image.header.set_zooms(
+        tuple([moving.header.get_zooms()[val] for val in reindex])
+    )
+    final_image.to_filename(out)
 
     return out
 
