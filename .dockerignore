@@ -25,23 +25,6 @@ tox.ini
 src/**/*
 src/
 
-# git
-.gitignore
-.git/**/*
-.git
-.mailmap
-
-# CI, etc.
-.circleci
-.circleci/**/*
-.github
-.github/**/*
-.zenodo.json
-.travis.yml
-.readthedocs.yml
-.versions.json
-CONTRIBUTING.md
-
 # other
 .DS_Store
 work/**/*
