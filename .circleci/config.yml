@@ -241,7 +241,7 @@ jobs:
 
   smoke_test:
     machine:
-      image: ubuntu-2004:202107-02
+      image: ubuntu-2204:current
       docker_layer_caching: true
       resource_class: xlarge
     working_directory: /tmp/rodent-se
