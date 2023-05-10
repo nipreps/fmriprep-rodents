@@ -12,9 +12,6 @@ fmriprep.egg-info/**/*
 fmriprep.egg-info
 .eggs/**/*
 .eggs
-.maint
-.maint/**/*
-Makefile
 
 # housekeeping tools
 get_version.py
