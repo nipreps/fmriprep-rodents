@@ -63,7 +63,6 @@ jobs:
             docker pull localhost:5000/freesurfer
             docker pull localhost:5000/afni
             docker pull localhost:5000/ants
-            docker pull localhost:5000/workbench
             docker pull localhost:5000/micromamba
 
             docker pull localhost:5000/ubuntu
@@ -142,7 +141,6 @@ jobs:
             docker build -t localhost:5000/freesurfer --target freesurfer .
             docker build -t localhost:5000/afni --target afni .
             docker build -t localhost:5000/ants --target ants .
-            docker build -t localhost:5000/workbench --target workbench .
             docker build -t localhost:5000/micromamba --target micromamba .
 
       - run:
@@ -155,7 +153,6 @@ jobs:
             docker push localhost:5000/freesurfer
             docker push localhost:5000/afni
             docker push localhost:5000/ants
-            docker push localhost:5000/workbench
             docker push localhost:5000/micromamba
 
       - run:
