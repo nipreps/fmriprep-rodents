@@ -243,7 +243,7 @@ ENV IS_DOCKER_8395080871=1
 
 RUN ldconfig
 WORKDIR /tmp
-ENTRYPOINT ["/opt/conda/envs/fprodents/"]
+ENTRYPOINT ["/opt/conda/envs/fprodents/bin/fprodents"]
 
 ARG BUILD_DATE
 ARG VCS_REF
