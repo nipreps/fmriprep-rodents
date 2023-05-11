@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  docker: circleci/docker@2.0.1
+  docker: circleci/docker@2.1.4
 
 jobs:
   build:
@@ -34,14 +34,65 @@ jobs:
           docker_layer_caching: true
 
       - run:
+          name: Set up Docker registry
+          command: |
+            if [[ -f /tmp/images/registry.tar.gz ]]; then
+              echo "Loading saved registry image"
+              docker load < /tmp/images/registry.tar.gz
+            else
+              echo "Pulling registry image from DockerHub"
+              docker pull registry:2
+            fi
+            docker run -d -p 5000:5000 --restart=always --name=registry \
+                -v /tmp/docker:/var/lib/registry registry:2
+
+      - run:
+          name: Save docker registry
+          command: |
+            if [[ ! -f /tmp/images/registry.tar.gz ]]; then
+              mkdir -p /tmp/images
+              docker save registry:2 | gzip > /tmp/images/registry.tar.gz
+            fi
+
+      - run:
+          name: Pull Ubuntu/jammy image
+          command: |
+            set +e
+            # Source layers if available
+            docker pull localhost:5000/downloader
+            docker pull localhost:5000/freesurfer
+            docker pull localhost:5000/afni
+            docker pull localhost:5000/ants
+            docker pull localhost:5000/micromamba
+
+            docker pull localhost:5000/ubuntu
+            success=$?
+            set -e
+            if [[ "$success" = "0" ]]; then
+                echo "Pulling from local registry"
+                docker tag localhost:5000/ubuntu ubuntu:jammy
+            else
+                echo "Pulling from Docker Hub"
+                docker pull ubuntu:jammy
+                docker tag ubuntu:jammy localhost:5000/ubuntu
+                docker push localhost:5000/ubuntu
+            fi
+
+      - run:
           name: Pull a base image if not cached
           no_output_timeout: 60m
           command: |
-            images=$(docker images | grep fmriprep-rodents) || images=""
-            if [[ "$images" == "" ]]; then
-                docker pull nipreps/fmriprep-rodents:latest
+            set +e
+            docker pull localhost:5000/fmriprep-rodents
+            success=$?
+            set -e
+            if [[ "$success" = "0" ]]; then
+                echo "Pulled from local registry"
+                docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents:latest
+                docker tag localhost:5000/fmriprep-rodents nipreps/fmriprep-rodents
             else
-                echo $images
+                echo "Pulling from Docker Hub"
+                docker pull nipreps/fmriprep-rodents:latest
             fi
 
       - run:
@@ -66,10 +117,59 @@ jobs:
             # Build docker image
             make docker-build version="${CIRCLE_TAG:-$THISVERSION}"
 
+      - run:
+          name: Check Docker image
+          command: |
+            export PY3=$(pyenv versions | grep '3\.' |
+                         sed -e 's/.* 3\./3./' -e 's/ .*//')
+            pyenv local $PY3
+            # Get version, update files.
+            THISVERSION=$( python3 setup.py --version )
+            BUILT_VERSION=$( docker run --rm nipreps/fmriprep-rodents:latest --version )
+            BUILT_VERSION=${BUILT_VERSION%$'\r'}
+            BUILT_VERSION=${BUILT_VERSION#*"fMRIPrep v"}
+            echo "VERSION: \"$THISVERSION\""
+            echo "BUILT: \"$BUILT_VERSION\""
+            set -e
+            test "$BUILT_VERSION" = "$THISVERSION"
+
+      - run:
+          name: Build and tag stages
+          no_output_timeout: 40m
+          command: |
+            docker build -t localhost:5000/downloader --target downloader .
+            docker build -t localhost:5000/freesurfer --target freesurfer .
+            docker build -t localhost:5000/afni --target afni .
+            docker build -t localhost:5000/ants --target ants .
+            docker build -t localhost:5000/micromamba --target micromamba .
+
+      - run:
+          name: Docker push to local registry
+          no_output_timeout: 40m
+          command: |
+            docker tag nipreps/fmriprep-rodents:latest localhost:5000/fmriprep-rodents
+            docker push localhost:5000/fmriprep-rodents
+            docker push localhost:5000/downloader
+            docker push localhost:5000/freesurfer
+            docker push localhost:5000/afni
+            docker push localhost:5000/ants
+            docker push localhost:5000/micromamba
+
+      - run:
+          name: Docker registry garbage collection
+          command: |
+            docker exec -it registry /bin/registry garbage-collect --delete-untagged \
+              /etc/docker/registry/config.yml
+
       - persist_to_workspace:
           root: /tmp
           paths:
             - src/fmriprep-rodents
+      - save_cache:
+         key: build-v0-{{ .Branch }}-{{ .Revision }}
+         paths:
+            - /tmp/docker
+            - /tmp/images
 
   get_data:
     docker:
@@ -141,7 +241,7 @@ jobs:
 
   smoke_test:
     machine:
-      image: ubuntu-2004:202107-02
+      image: ubuntu-2204:current
       docker_layer_caching: true
       resource_class: xlarge
     working_directory: /tmp/rodent-se
@@ -166,7 +266,9 @@ jobs:
 
       - attach_workspace:
           at: /tmp
-
+      - restore_cache:
+          keys:
+            - build-v0-{{ .Branch }}-{{ .Revision }}
       - restore_cache:
           keys:
             - data-se-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}

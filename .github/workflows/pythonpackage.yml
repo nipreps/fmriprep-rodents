@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.8, 3.9, '3.10']
         pip: ["pip>=20.3"]
         
     steps:
@@ -67,15 +67,9 @@ jobs:
         python -m venv /tmp/setup_install
         source /tmp/setup_install/bin/activate
         python -m pip install "${{ matrix.pip }}" setuptools
-        # this logic is needed to play nice with nitransforms (see nipreps/nitransforms#139)
-        if [[ ${{ matrix.python-version }} == "3.7" ]]; then
-          python -m pip install "numpy ~= 1.21.0" "scipy ~= 1.6.0" "Cython >= 0.28.5" # sklearn needs these
-        else
-          python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
-        fi
+        python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
         python -m pip install scikit-learn  # otherwise it attempts to build it
         python -m pip install "matplotlib ~= 3.4.2"  # otherwise nilearn installs the latest
-        python -m pip install "networkx < 2.7" # nirodents has this pinned
         python setup.py install
         INSTALLED_VERSION=$(python -c 'import fprodents; print(fprodents.__version__, end="")')
         echo "INSTALLED: \"${INSTALLED_VERSION}\""
@@ -86,15 +80,9 @@ jobs:
         source /tmp/setup_develop/bin/activate
         python -m pip install "${{ matrix.pip }}" setuptools
         # sklearn needs these dependencies
-        # this logic is needed to play nice with nitransforms (see nipreps/nitransforms#139)
-        if [[ ${{ matrix.python-version }} == "3.7" ]]; then
-          python -m pip install "numpy ~= 1.21.0" "scipy ~= 1.6.0" "Cython >= 0.28.5" # sklearn needs these
-        else
-          python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
-        fi
+        python -m pip install numpy scipy "Cython >= 0.28.5" # sklearn needs this
         python -m pip install scikit-learn  # otherwise it attempts to build it
         python -m pip install "matplotlib ~= 3.4.2"  # otherwise nilearn installs the latest
-        python -m pip install "networkx < 2.7" # nirodents has this pinned
         python setup.py develop
         INSTALLED_VERSION=$(python -c 'import fprodents; print(fprodents.__version__, end="")')
         echo "INSTALLED: \"${INSTALLED_VERSION}\""
@@ -104,9 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 3.7
+    - name: Set up Python 3
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3
     - run: pip install flake8
     - run: flake8 fprodents

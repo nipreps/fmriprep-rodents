@@ -22,28 +22,152 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Use Ubuntu 20.04 LTS
-FROM nipreps/miniconda:py38_1.4.2
+# Ubuntu 22.04 LTS - Jammy
+ARG BASE_IMAGE=ubuntu:jammy-20230308
 
-ENV DEBIAN_FRONTEND=noninteractive
+#
+# fMRIPrep wheel
+#
+FROM python:slim AS src
+RUN pip install build
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git
+COPY . /src/fmriprep
+RUN python -m build /src/fmriprep
+
+#
+# Download stages
+#
+
+# Utilities for downloading packages
+FROM ${BASE_IMAGE} as downloader
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+                    binutils \
+                    bzip2 \
+                    ca-certificates \
+                    curl \
+                    unzip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Installing freesurfer
+FROM downloader as freesurfer
+COPY docker/files/freesurfer-exclude.txt /usr/local/etc/freesurfer-exclude.txt
 RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/6.0.1/freesurfer-Linux-centos6_x86_64-stable-pub-v6.0.1.tar.gz \
-    | tar zxv --no-same-owner -C /opt \
-    --exclude='freesurfer/average' \
-    --exclude='freesurfer/diffusion' \
-    --exclude='freesurfer/docs' \
-    --exclude='freesurfer/fsfast' \
-    --exclude='freesurfer/lib/cuda' \
-    --exclude='freesurfer/lib/qt' \
-    --exclude='freesurfer/matlab' \
-    --exclude='freesurfer/mni/share/man' \
-    --exclude='freesurfer/subjects' \
-    --exclude='freesurfer/trctrain'
+    | tar zxv --no-same-owner -C /opt --exclude-from=/usr/local/etc/freesurfer-exclude.txt
+
+# AFNI
+FROM downloader as afni
+# Bump the date to current to update AFNI
+RUN echo "2023.04.04"
+RUN mkdir -p /opt/afni-latest \
+    && curl -fsSL --retry 5 https://afni.nimh.nih.gov/pub/dist/tgz/linux_openmp_64.tgz \
+    | tar -xz -C /opt/afni-latest --strip-components 1 \
+    --exclude "linux_openmp_64/*.gz" \
+    --exclude "linux_openmp_64/funstuff" \
+    --exclude "linux_openmp_64/shiny" \
+    --exclude "linux_openmp_64/afnipy" \
+    --exclude "linux_openmp_64/lib/RetroTS" \
+    --exclude "linux_openmp_64/lib_RetroTS" \
+    --exclude "linux_openmp_64/meica.libs" \
+    # Keep only what we use
+    && find /opt/afni-latest -type f -not \( \
+        -name "3dTshift" -or \
+        -name "3dUnifize" -or \
+        -name "3dAutomask" -or \
+        -name "3dvolreg" \) -delete
+
+# ANTs 2.3.3
+FROM downloader as ants
+# Note: the URL says 2.3.4 but it is actually 2.3.3
+RUN mkdir /opt/ants && \
+    curl -sSL "https://dl.dropbox.com/s/gwf51ykkk5bifyj/ants-Linux-centos6_x86_64-v2.3.4.tar.gz" \
+    | tar -xzC /opt/ants --strip-components 1
+
+# Micromamba
+FROM downloader as micromamba
+WORKDIR /
+# Bump the date to current to force update micromamba
+RUN echo "2023.04.05"
+RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+
+# Install FSL and Convert3D from conda packages
+# Specific FSL pins are derived from
+# https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.6.2_linux-64.yml
+ENV MAMBA_ROOT_PREFIX="/opt/conda"
+COPY env.yml /tmp/env.yml
+RUN micromamba create -y -f /tmp/env.yml && \
+    micromamba clean -y -a
+
+ENV PATH="/opt/conda/envs/fprodents/bin:$PATH"
+RUN /opt/conda/envs/fprodents/bin/npm install -g svgo@^2.8 bids-validator@1.11.0 && \
+    rm -r ~/.npm
+
+COPY requirements.txt /tmp/requirements.txt
+RUN /opt/conda/envs/fprodents/bin/pip install --no-cache-dir -r /tmp/requirements.txt
+
+#
+# Main stage
+#
+FROM ${BASE_IMAGE} as fmriprep
+
+# Configure apt
+ENV DEBIAN_FRONTEND="noninteractive" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+                    ca-certificates \
+                    curl \
+                    gnupg \
+                    lsb-release \
+                    netbase \
+                    xvfb && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+
+# Configure PPAs for libpng12 and libxp6
+RUN GNUPGHOME=/tmp gpg --keyserver hkps://keyserver.ubuntu.com --no-default-keyring --keyring /usr/share/keyrings/linuxuprising.gpg --recv 0xEA8CACC073C3DB2A \
+    && GNUPGHOME=/tmp gpg --keyserver hkps://keyserver.ubuntu.com --no-default-keyring --keyring /usr/share/keyrings/zeehio.gpg --recv 0xA1301338A3A48C4A \
+    && echo "deb [signed-by=/usr/share/keyrings/linuxuprising.gpg] https://ppa.launchpadcontent.net/linuxuprising/libpng12/ubuntu jammy main" > /etc/apt/sources.list.d/linuxuprising.list \
+    && echo "deb [signed-by=/usr/share/keyrings/zeehio.gpg] https://ppa.launchpadcontent.net/zeehio/libxp/ubuntu jammy main" > /etc/apt/sources.list.d/zeehio.list
+
+# Dependencies for AFNI; requires a discontinued multiarch-support package from bionic (18.04)
+RUN apt-get update -qq \
+    && apt-get install -y -q --no-install-recommends \
+           ed \
+           gsl-bin \
+           libglib2.0-0 \
+           libglu1-mesa-dev \
+           libglw1-mesa \
+           libgomp1 \
+           libjpeg62 \
+           libpng12-0 \
+           libxm4 \
+           libxp6 \
+           netpbm \
+           tcsh \
+           xfonts-base \
+           xvfb \
+    && curl -sSL --retry 5 -o /tmp/multiarch.deb http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/multiarch-support_2.27-3ubuntu1.5_amd64.deb \
+    && dpkg -i /tmp/multiarch.deb \
+    && rm /tmp/multiarch.deb \
+    && apt-get install -f \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && gsl2_path="$(find / -name 'libgsl.so.19' || printf '')" \
+    && if [ -n "$gsl2_path" ]; then \
+         ln -sfv "$gsl2_path" "$(dirname $gsl2_path)/libgsl.so.0"; \
+    fi \
+    && ldconfig
+
+# Install files from stages
+COPY --from=freesurfer /opt/freesurfer /opt/freesurfer
+COPY --from=afni /opt/afni-latest /opt/afni-latest
+COPY --from=ants /opt/ants /opt/ants
 
 # Simulate SetUpFreeSurfer.sh
-ENV FSL_DIR="/opt/fsl-5.0.11" \
-    OS="Linux" \
+ENV OS="Linux" \
     FS_OVERRIDE=0 \
     FIX_VERTEX_AREA="" \
     FSF_OUTPUT_FORMAT="nii.gz" \
@@ -59,187 +183,28 @@ ENV PERL5LIB="$MINC_LIB_DIR/perl5/5.8.5" \
     MNI_PERL5LIB="$MINC_LIB_DIR/perl5/5.8.5" \
     PATH="$FREESURFER_HOME/bin:$FSFAST_HOME/bin:$FREESURFER_HOME/tktools:$MINC_BIN_DIR:$PATH"
 
-# FSL 5.0.11 (neurodocker build)
-RUN apt-get update -qq \
-    && apt-get install -y -q --no-install-recommends \
-           bc \
-           dc \
-           file \
-           libfontconfig1 \
-           libfreetype6 \
-           libgl1-mesa-dev \
-           libgl1-mesa-dri \
-           libglu1-mesa-dev \
-           libgomp1 \
-           libice6 \
-           libxcursor1 \
-           libxft2 \
-           libxinerama1 \
-           libxrandr2 \
-           libxrender1 \
-           libxt6 \
-           sudo \
-           wget \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && echo "Downloading FSL ..." \
-    && mkdir -p /opt/fsl-5.0.11 \
-    && curl -fsSL --retry 5 https://fsl.fmrib.ox.ac.uk/fsldownloads/fsl-5.0.11-centos6_64.tar.gz \
-    | tar -xz -C /opt/fsl-5.0.11 --strip-components 1 \
-    --exclude "fsl/config" \
-    --exclude "fsl/data/atlases" \
-    --exclude "fsl/data/first" \
-    --exclude "fsl/data/mist" \
-    --exclude "fsl/data/possum" \
-    --exclude "fsl/data/standard/bianca" \
-    --exclude "fsl/data/standard/tissuepriors" \
-    --exclude "fsl/doc" \
-    --exclude "fsl/etc/default_flobs.flobs" \
-    --exclude "fsl/etc/fslconf" \
-    --exclude "fsl/etc/js" \
-    --exclude "fsl/etc/luts" \
-    --exclude "fsl/etc/matlab" \
-    --exclude "fsl/extras" \
-    --exclude "fsl/include" \
-    --exclude "fsl/python" \
-    --exclude "fsl/refdoc" \
-    --exclude "fsl/src" \
-    --exclude "fsl/tcl" \
-    --exclude "fsl/bin/FSLeyes" \
-    && find /opt/fsl-5.0.11/bin -type f -not \( \
-        -name "applywarp" -or \
-        -name "bet" -or \
-        -name "bet2" -or \
-        -name "convert_xfm" -or \
-        -name "fast" -or \
-        -name "flirt" -or \
-        -name "fsl_regfilt" -or \
-        -name "fslhd" -or \
-        -name "fslinfo" -or \
-        -name "fslmaths" -or \
-        -name "fslmerge" -or \
-        -name "fslroi" -or \
-        -name "fslsplit" -or \
-        -name "fslstats" -or \
-        -name "imtest" -or \
-        -name "mcflirt" -or \
-        -name "melodic" -or \
-        -name "prelude" -or \
-        -name "remove_ext" -or \
-        -name "susan" -or \
-        -name "topup" -or \
-        -name "zeropad" \) -delete \
-    && find /opt/fsl-5.0.11/data/standard -type f -not -name "MNI152_T1_2mm_brain.nii.gz" -delete
-ENV FSLDIR="/opt/fsl-5.0.11" \
-    PATH="/opt/fsl-5.0.11/bin:$PATH" \
-    FSLOUTPUTTYPE="NIFTI_GZ" \
-    FSLMULTIFILEQUIT="TRUE" \
-    FSLLOCKDIR="" \
-    FSLMACHINELIST="" \
-    FSLREMOTECALL="" \
-    FSLGECUDAQ="cuda.q" \
-    LD_LIBRARY_PATH="/opt/fsl-5.0.11/lib:$LD_LIBRARY_PATH"
-
-# Convert3D (neurodocker build)
-RUN echo "Downloading Convert3D ..." \
-    && mkdir -p /opt/convert3d-1.0.0 \
-    && curl -fsSL --retry 5 https://sourceforge.net/projects/c3d/files/c3d/1.0.0/c3d-1.0.0-Linux-x86_64.tar.gz/download \
-    | tar -xz -C /opt/convert3d-1.0.0 --strip-components 1 \
-    --exclude "c3d-1.0.0-Linux-x86_64/lib" \
-    --exclude "c3d-1.0.0-Linux-x86_64/share" \
-    --exclude "c3d-1.0.0-Linux-x86_64/bin/c3d_gui"
-ENV C3DPATH="/opt/convert3d-1.0.0" \
-    PATH="/opt/convert3d-1.0.0/bin:$PATH"
-
-# AFNI latest (neurodocker build)
-RUN apt-get update -qq \
-    && apt-get install -y -q --no-install-recommends \
-           apt-utils \
-           ed \
-           gsl-bin \
-           libglib2.0-0 \
-           libglu1-mesa-dev \
-           libglw1-mesa \
-           libgomp1 \
-           libjpeg62 \
-           libxm4 \
-           netpbm \
-           tcsh \
-           xfonts-base \
-           xvfb \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -sSL --retry 5 -o /tmp/multiarch.deb http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/multiarch-support_2.27-3ubuntu1.5_amd64.deb \
-    && dpkg -i /tmp/multiarch.deb \
-    && rm /tmp/multiarch.deb \
-    && curl -sSL --retry 5 -o /tmp/libxp6.deb http://mirrors.kernel.org/debian/pool/main/libx/libxp/libxp6_1.0.2-2_amd64.deb \
-    && dpkg -i /tmp/libxp6.deb \
-    && rm /tmp/libxp6.deb \
-    && curl -sSL --retry 5 -o /tmp/libpng.deb http://snapshot.debian.org/archive/debian-security/20160113T213056Z/pool/updates/main/libp/libpng/libpng12-0_1.2.49-1%2Bdeb7u2_amd64.deb \
-    && dpkg -i /tmp/libpng.deb \
-    && rm /tmp/libpng.deb \
-    && apt-get install -f \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && gsl2_path="$(find / -name 'libgsl.so.19' || printf '')" \
-    && if [ -n "$gsl2_path" ]; then \
-         ln -sfv "$gsl2_path" "$(dirname $gsl2_path)/libgsl.so.0"; \
-    fi \
-    && ldconfig \
-    && echo "Downloading AFNI ..." \
-    && mkdir -p /opt/afni-latest \
-    && curl -fsSL --retry 5 https://afni.nimh.nih.gov/pub/dist/tgz/linux_openmp_64.tgz \
-    | tar -xz -C /opt/afni-latest --strip-components 1 \
-    --exclude "linux_openmp_64/*.gz" \
-    --exclude "linux_openmp_64/funstuff" \
-    --exclude "linux_openmp_64/shiny" \
-    --exclude "linux_openmp_64/afnipy" \
-    --exclude "linux_openmp_64/lib/RetroTS" \
-    --exclude "linux_openmp_64/meica.libs" \
-    # Keep only what we use
-    && find /opt/afni-latest -type f -not \( \
-        -name "3dTshift" -or \
-        -name "3dUnifize" -or \
-        -name "3dAutomask" -or \
-        -name "3dvolreg" \) -delete
-
 ENV PATH="/opt/afni-latest:$PATH" \
     AFNI_IMSAVE_WARNINGS="NO" \
     AFNI_PLUGINPATH="/opt/afni-latest"
 
-# Installing ANTs 2.3.3 (NeuroDocker build)
-# Note: the URL says 2.3.4 but it is actually 2.3.3
 ENV ANTSPATH="/opt/ants" \
     PATH="/opt/ants:$PATH"
-WORKDIR $ANTSPATH
-RUN curl -sSL "https://dl.dropbox.com/s/gwf51ykkk5bifyj/ants-Linux-centos6_x86_64-v2.3.4.tar.gz" \
-    | tar -xzC $ANTSPATH --strip-components 1
-
-# Installing and setting up ICA_AROMA
-WORKDIR /opt/ICA-AROMA
-RUN curl -sSL "https://github.com/oesteban/ICA-AROMA/archive/v0.4.5.tar.gz" \
-  | tar -xzC /opt/ICA-AROMA --strip-components 1 && \
-  chmod +x /opt/ICA-AROMA/ICA_AROMA.py
-ENV PATH="/opt/ICA-AROMA:$PATH" \
-    AROMA_VERSION="0.4.5"
-
-# Set CPATH for packages relying on compiled libs (e.g. indexed_gzip)
-ENV PATH="/opt/conda/bin:$PATH" \
-    CPATH="/opt/conda/include:$CPATH" \
-    LD_LIBRARY_PATH="/opt/conda/lib:$LD_LIBRARY_PATH" \
-    LANG="C.UTF-8" \
-    LC_ALL="C.UTF-8" \
-    PYTHONNOUSERSITE=1
-
-# Unless otherwise specified each process should only use one thread - nipype
-# will handle parallelization
-ENV MKL_NUM_THREADS=1 \
-    OMP_NUM_THREADS=1
 
 # Create a shared $HOME directory
 RUN useradd -m -s /bin/bash -G users fmriprep
 WORKDIR /home/fmriprep
-ENV HOME="/home/fmriprep"
+ENV HOME="/home/fmriprep" \
+    LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
+COPY --from=micromamba /bin/micromamba /bin/micromamba
+COPY --from=micromamba /opt/conda/envs/fprodents /opt/conda/envs/fprodents
+
+ENV MAMBA_ROOT_PREFIX="/opt/conda"
+RUN micromamba shell init -s bash && \
+    echo "micromamba activate fprodents" >> $HOME/.bashrc
+ENV PATH="/opt/conda/envs/fprodents/bin:$PATH" \
+    CPATH="/opt/conda/envs/fprodents/include:$CPATH" \
+    LD_LIBRARY_PATH="/opt/conda/envs/fprodents/lib:$LD_LIBRARY_PATH"
 
 # Precaching atlases
 RUN python -c "import templateflow; \
@@ -248,12 +213,27 @@ RUN python -c "import templateflow; \
     find $HOME/.cache/templateflow -type d -exec chmod go=u {} + && \
     find $HOME/.cache/templateflow -type f -exec chmod go=u {} +
 
-COPY . /src/fmriprep
-ARG VERSION
-# Force static versioning within container
-RUN echo "${VERSION}" > /src/fmriprep/fprodents/VERSION && \
-    echo "include fprodents/VERSION" >> /src/fmriprep/MANIFEST.in && \
-    /opt/conda/bin/python -m pip install --no-cache-dir "/src/fmriprep[all]"
+
+# Set CPATH for packages relying on compiled libs (e.g. indexed_gzip)
+ENV LANG="C.UTF-8" \
+    LC_ALL="C.UTF-8" \
+    PYTHONNOUSERSITE=1 \
+    FSLDIR="/opt/conda/envs/fprodents" \
+    FSLOUTPUTTYPE="NIFTI_GZ" \
+    FSLMULTIFILEQUIT="TRUE" \
+    FSLLOCKDIR="" \
+    FSLMACHINELIST="" \
+    FSLREMOTECALL="" \
+    FSLGECUDAQ="cuda.q"
+
+# Unless otherwise specified each process should only use one thread - nipype
+# will handle parallelization
+ENV MKL_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1
+
+# Installing FMRIPREP
+COPY --from=src /src/fmriprep/dist/*.whl .
+RUN pip install --no-cache-dir $( ls *.whl )[all]
 
 RUN find $HOME -type d -exec chmod go=u {} + && \
     find $HOME -type f -exec chmod go=u {} + && \
@@ -263,7 +243,7 @@ ENV IS_DOCKER_8395080871=1
 
 RUN ldconfig
 WORKDIR /tmp
-ENTRYPOINT ["/opt/conda/bin/fprodents"]
+ENTRYPOINT ["/opt/conda/envs/fprodents/bin/fprodents"]
 
 ARG BUILD_DATE
 ARG VCS_REF
