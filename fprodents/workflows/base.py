@@ -106,11 +106,9 @@ def init_single_subject_wf(subject_id):
     from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.utils.bids import collect_data
-    from niworkflows.utils.connections import listify
     from niworkflows.utils.spaces import Reference
-    from niworkflows.workflows.epi.refmap import init_epi_reference_wf
     from ..patch.interfaces import BIDSDataGrabber
-    from ..patch.utils import extract_entities, fix_multi_source_name
+    from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
     subject_data = collect_data(
@@ -285,87 +283,49 @@ were met (for participant <{subject_id}>, spaces <{', '.join(std_spaces)}>."""
         return workflow
 
     from sdcflows import fieldmaps as fm
-    from sdcflows.interfaces.brainmask import BrainExtraction
+
     fmap_estimators = None
 
-    if "fieldmaps" not in config.workflow.ignore:
+    if any(
+        (
+            "fieldmaps" not in config.workflow.ignore,
+            config.workflow.use_syn_sdc,
+            config.workflow.force_syn,
+        )
+    ):
+        from sdcflows.utils.wrangler import find_estimators
+
         # SDC Step 1: Run basic heuristics to identify available data for fieldmap estimation
         # For now, no fmapless
-        base_entities = {
-            "subject": subject_id,
-            "extension": [".nii", ".nii.gz"],
-            "scope": "raw",  # Ensure derivatives are not captured
-        }
-
-        # Find fieldmap-less schemes
-        anat_file = config.execution.layout.get(suffix=["T2w", "T1w", "UNIT1"], **base_entities)
-        if not anat_file:
-            has_fieldmap = False
-            fmap_estimators = None
-        else:
-            from contextlib import suppress
-            from pathlib import Path
-            from sdcflows.utils.epimanip import get_trt
-            candidates = config.execution.layout.get(suffix="bold", **base_entities)
-            # Filter out candidates without defined PE direction
-            fmap_estimators = []
-            epi_targets = []
-            pe_dirs = []
-            ro_totals = []
-
-            for candidate in candidates:
-                meta = candidate.get_metadata()
-                pe_dir = meta.get("PhaseEncodingDirection")
-
-                if not pe_dir:
-                    continue
-
-                pe_dirs.append(pe_dir)
-                ro = 1.0
-                with suppress(ValueError):
-                    ro = get_trt(meta, candidate.path)
-                ro_totals.append(ro)
-                meta.update({"TotalReadoutTime": ro})
-                epi_targets.append(fm.FieldmapFile(candidate.path, metadata=meta))
-
-            for pe_dir in sorted(set(pe_dirs)):
-                pe_ro = [ro for ro, pe in zip(ro_totals, pe_dirs) if pe == pe_dir]
-                for ro_time in sorted(set(pe_ro)):
-                    fmfiles, fmpaths = tuple(
-                        zip(
-                            *[
-                                (target, str(Path(target.path)))
-                                for i, target in enumerate(epi_targets)
-                                if pe_dirs[i] == pe_dir and ro_totals[i] == ro_time
-                            ]
-                        )
-                    )
-                    fmap_estimators.append(
-                        fm.FieldmapEstimation(
-                            [
-                                fm.FieldmapFile(
-                                    anat_file[0], metadata={"IntendedFor": fmpaths}
-                                ),
-                                *fmfiles,
-                            ]
-                        )
-                    )
-
-            # fmap_estimators = [fm.FieldmapEstimation(
-            #     [str(f) for f in config.execution.layout.get(
-            #         return_type='file',
-            #         subject=subject_id,
-            #         suffix=['T2w', 'bold'],
-            #         extension='nii.gz')]
-            # )]
+        filters = None
+        if config.execution.bids_filters is not None:
+            filters = config.execution.bids_filters.get("fmap")
+        fmap_estimators = find_estimators(
+            layout=config.execution.layout,
+            subject=subject_id,
+            fmapless=bool(config.workflow.use_syn_sdc),
+            force_fmapless=config.workflow.force_syn,
+            bids_filters=filters,
+            anat_suffix=["T2w", "T1w", "UNIT1"]
+        )
 
         if config.workflow.use_syn_sdc and not fmap_estimators:
-            message = ("Fieldmap-less (SyN) estimation was requested, but "
-                       "PhaseEncodingDirection information appears to be "
-                       "absent.")
+            message = (
+                "Fieldmap-less (SyN) estimation was requested, but PhaseEncodingDirection "
+                "information appears to be absent."
+            )
             config.loggers.workflow.error(message)
             if config.workflow.use_syn_sdc == "error":
                 raise ValueError(message)
+
+        if "fieldmaps" in config.workflow.ignore and any(
+            f.method == fm.EstimatorType.ANAT for f in fmap_estimators
+        ):
+            config.loggers.workflow.info(
+                'Option "--ignore fieldmaps" was set, but either "--use-syn-sdc" '
+                'or "--force-syn" were given, so fieldmap-less estimation will be executed.'
+            )
+            fmap_estimators = [f for f in fmap_estimators if f.method == fm.EstimatorType.ANAT]
 
         if fmap_estimators:
             config.loggers.workflow.info(
@@ -374,55 +334,25 @@ were met (for participant <{subject_id}>, spaces <{', '.join(std_spaces)}>."""
                 f"{[e.method for e in fmap_estimators]}."
             )
 
-    # Append the functional section to the existing anatomical exerpt
+    # Append the functional section to the existing anatomical excerpt
     # That way we do not need to stream down the number of bold datasets
     func_pre_desc = """
-
 Functional data preprocessing
 
 : For each of the {num_bold} BOLD runs found per subject (across all
 tasks and sessions), the following preprocessing was performed.
-""".format(num_bold=len(subject_data["bold"]))
+""".format(
+        num_bold=len(subject_data['bold'])
+    )
 
     func_preproc_wfs = []
     has_fieldmap = bool(fmap_estimators)
-    for idx, bold_file in enumerate(subject_data["bold"]):
-        echoes = extract_entities(bold_file).get("echo", [])
-        echo_idxs = listify(echoes)
-        multiecho = len(echo_idxs) > 2
-
-        bold_ref_wf = init_epi_reference_wf(
-            auto_bold_nss=True,
-            omp_nthreads=config.nipype.omp_nthreads,
-            name=f"epi_reference_wf_{idx}" if len(subject_data["bold"]) > 1 else "epi_reference_wf"
-        )
-        bold_ref_wf.inputs.inputnode.in_files = (
-            bold_file if not multiecho else bold_file[0]
-        )
-        # set INU bspline grid based on voxel size
-        bspline_grid = _bspline_grid(
-            bold_file if not multiecho else bold_file[0]
-        )
-        bold_ref_wf.inputs.n4_avgs.args = bspline_grid
-        #  The default N4 shrink factor (4) appears to artificially blur values across
-        #  anisotropic voxels. Shrink factors are intended to speed up calculation
-        #  but in most cases, the extra calculation time appears to be minimal.
-        #  Similarly, the use of an asymmetric bspline grid improves performance
-        #  in anisotropic voxels. The number of N4 iterations are also reduced.
-        bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
-        bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
-
-        skullstrip_ref = pe.Node(
-            BrainExtraction(),
-            name=f"skullstrip_ref_{idx}" if len(subject_data["bold"]) > 1 else "skullstrip_ref"
-        )
-
+    for bold_file in subject_data['bold']:
         func_preproc_wf = init_func_preproc_wf(bold_file, has_fieldmap=has_fieldmap)
         if func_preproc_wf is None:
             continue
 
         func_preproc_wf.__desc__ = func_pre_desc + (func_preproc_wf.__desc__ or "")
-
         # fmt:off
         workflow.connect([
             (anat_preproc_wf, func_preproc_wf,
@@ -433,25 +363,25 @@ tasks and sessions), the following preprocessing was performed.
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
-            (bold_ref_wf, func_preproc_wf,
-             [('outputnode.epi_ref_file', 'inputnode.ref_file'),
-              ('outputnode.xfm_files', 'inputnode.bold_ref_xfm'),
-              ('outputnode.validation_report', 'inputnode.validation_report'),
-              (('outputnode.n_dummy', _pop), 'inputnode.n_dummy_scans')]),
-            (bold_ref_wf, skullstrip_ref, [('outputnode.epi_ref_file', 'in_file')])
         ])
         # fmt:on
-        func_preproc_wfs.append(func_preproc_wf)
+        func_preproc_wfs.append({'wf': func_preproc_wf, 'bold_file': bold_file})
 
     if not has_fieldmap:
+        # do reference workflow since it won't otherwise be done
+        for func_preproc_wf in func_preproc_wfs:
+            ref_wf = init_reference_workflow(func_preproc_wf['bold_file'])
+            workflow.connect([
+                (ref_wf, func_preproc_wf['wf'], [
+                    ("outputnode.ref_file", "inputnode.ref_file"),
+                    ("outputnode.bold_ref_xfm", "inputnode.bold_ref_xfm"),
+                    ("outputnode.validation_report", "inputnode.validation_report"),
+                    ("outputnode.n_dummy_scans", "inputnode.n_dummy_scans")
+                ]),
+            ])
         return workflow
 
     from sdcflows.workflows.base import init_fmap_preproc_wf
-
-    # Select "Fischer344" from standard references.
-    create_prior = pe.Node(niu.Function(function=_create_atlas_prior), name="create_prior")
-    create_prior.inputs.template = 'Fischer344'
-    create_prior.inputs.suffix = 'T2w'
 
     fmap_wf = init_fmap_preproc_wf(
         debug=config.execution.debug,
@@ -468,30 +398,9 @@ Preprocessing of B<sub>0</sub> inhomogeneity mappings
 BIDS structure for this particular subject.
 """
 
-    # Overwrite ``out_path_base`` of sdcflows's DataSinks
-    for node in fmap_wf.list_node_names():
-        if node.split(".")[-1].startswith("ds_"):
-            fmap_wf.get_node(node).interface.out_path_base = ""
-
-    refmap_metadata = pe.Node(niu.Function(function=_merge_meta), name="refmap_metadata")
-    source_meta = [s.metadata for s in _pop(fmap_estimators).sources if s.suffix == 'bold']
-    refmap_metadata.inputs.meta_list = source_meta
-
-    # fmt: off
-    workflow.connect([
-        (anat_preproc_wf, fmap_wf, [
-            ("outputnode.t2w_preproc", f"in_{_pop(fmap_estimators).bids_id}.anat_ref"),
-            ("outputnode.t2w_mask", f"in_{_pop(fmap_estimators).bids_id}.anat_mask")]),
-        (bold_ref_wf, refmap_metadata, [('outputnode.epi_ref_file', 'epi_ref')]),
-        (refmap_metadata, fmap_wf, [
-            ("out", f"in_{_pop(fmap_estimators).bids_id}.epi_ref")]),
-        (skullstrip_ref, fmap_wf, [('out_mask', f"in_{_pop(fmap_estimators).bids_id}.epi_mask")]),
-        (create_prior, fmap_wf, [("out", f"in_{_pop(fmap_estimators).bids_id}.sd_prior")])
-    ])
-
     for func_preproc_wf in func_preproc_wfs:
         workflow.connect([
-            (fmap_wf, func_preproc_wf, [
+            (fmap_wf, func_preproc_wf['wf'], [
                 ("outputnode.fmap", "inputnode.fmap"),
                 ("outputnode.fmap_ref", "inputnode.fmap_ref"),
                 ("outputnode.fmap_coeff", "inputnode.fmap_coeff"),
@@ -501,6 +410,136 @@ BIDS structure for this particular subject.
             ]),
         ])
     # fmt: on
+
+    # Overwrite ``out_path_base`` of sdcflows's DataSinks
+    for node in fmap_wf.list_node_names():
+        if node.split(".")[-1].startswith("ds_"):
+            fmap_wf.get_node(node).interface.out_path_base = ""
+
+    # Step 3: Manually connect PEPOLAR and ANAT workflows
+
+    # Select "Fisher344" from standard references.
+    # This node may be used by multiple ANAT estimators, so define outside loop.
+    from niworkflows.interfaces.utility import KeySelect
+
+    fmap_select_std = pe.Node(
+        KeySelect(fields=["std2anat_xfm"], key="Fischer344"),
+        name="fmap_select_std",
+        run_without_submitting=True,
+    )
+    if any(estimator.method == fm.EstimatorType.ANAT for estimator in fmap_estimators):
+        # fmt:off
+        workflow.connect([
+            (anat_preproc_wf, fmap_select_std, [
+                ("outputnode.std2anat_xfm", "std2anat_xfm"),
+                ("outputnode.template", "keys")]),
+        ])
+        # fmt:on
+    else:
+        # connect reference workflow since it won't be done otherwise
+        for func_preproc_wf in func_preproc_wfs:
+            ref_wf = init_reference_workflow(func_preproc_wf['bold_file'])
+            # fmt:off
+            workflow.connect([
+                (ref_wf, func_preproc_wf['wf'], [
+                    ("outputnode.ref_file", "inputnode.ref_file"),
+                    ("outputnode.bold_ref_xfm", "inputnode.bold_ref_xfm"),
+                    ("outputnode.validation_report", "inputnode.validation_report"),
+                    ("outputnode.n_dummy_scans", "inputnode.n_dummy_scans")
+                ]),
+            ])
+            # fmt:on
+
+    for estimator in fmap_estimators:
+        config.loggers.workflow.info(
+            f"""\
+Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
+<{', '.join(s.path.name for s in estimator.sources)}>"""
+        )
+
+        # Mapped and phasediff can be connected internally by SDCFlows
+        if estimator.method in (fm.EstimatorType.MAPPED, fm.EstimatorType.PHASEDIFF):
+            continue
+
+        suffices = [s.suffix for s in estimator.sources]
+
+        if estimator.method == fm.EstimatorType.PEPOLAR:
+            if set(suffices) == {"epi"} or sorted(suffices) == ["bold", "epi"]:
+                wf_inputs = getattr(fmap_wf.inputs, f"in_{estimator.bids_id}")
+                wf_inputs.in_data = [str(s.path) for s in estimator.sources]
+                wf_inputs.metadata = [s.metadata for s in estimator.sources]
+
+                pe_inputs = getattr(fmap_wf.inputs, f"wf_{estimator.bids_id}")
+                # if pe dir is IS/SI, need to reorient to LSA for topup
+                # https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=ind1504&L=FSL&D=0&P=277030
+                pe_inputs.to_las.target_orientation = "LSA"
+                # two pass averaging is derailing averaging, so use single-pass instead
+                pe_inputs.setwise_avg.two_pass = False
+                pe_inputs.brainextraction_wf.n4.args = _bspline_grid(estimator.sources[0].path)
+                pe_inputs.brainextraction_wf.n4.shrink_factor = 1
+                pe_inputs.brainextraction_wf.n4.n_iterations = [50] * 4
+            else:
+                raise NotImplementedError("Sophisticated PEPOLAR schemes are unsupported.")
+
+        elif estimator.method == fm.EstimatorType.ANAT:
+            from sdcflows.workflows.fit.syn import init_syn_preprocessing_wf
+
+            sources = [str(s.path) for s in estimator.sources if s.suffix == "bold"]
+            source_meta = [s.metadata for s in estimator.sources if s.suffix == "bold"]
+            syn_preprocessing_wf = init_syn_preprocessing_wf(
+                omp_nthreads=config.nipype.omp_nthreads,
+                debug=config.execution.debug is True,
+                auto_bold_nss=True,
+                t1w_inversion=False,
+                name=f"syn_preprocessing_{estimator.bids_id}",
+            )
+            syn_preprocessing_wf.inputs.inputnode.in_epis = sources
+            syn_preprocessing_wf.inputs.inputnode.in_meta = source_meta
+
+            #  The default N4 shrink factor (4) appears to artificially blur values across
+            #  anisotropic voxels. Shrink factors are intended to speed up calculation
+            #  but in most cases, the extra calculation time appears to be minimal.
+            syn_preprocessing_wf.inputs.epi_reference_wf.n4_avgs.shrink_factor = 1
+            #  Similarly, the use of an asymmetric bspline grid improves performance
+            #  in anisotropic voxels, so set INU bspline grid based on voxel size
+            syn_preprocessing_wf.inputs.epi_reference_wf.n4_avgs.args = _bspline_grid(sources[0])
+            # The number of N4 iterations are also reduced.
+            syn_preprocessing_wf.inputs.epi_reference_wf.n4_avgs.n_iterations = [50] * 4
+
+            # Select "Fischer344" from standard references.
+            create_prior = pe.Node(niu.Function(function=_create_atlas_prior), name="create_prior")
+            create_prior.inputs.template = 'Fischer344'
+            create_prior.inputs.suffix = 'T2w'
+
+            # fmt:off
+            workflow.connect([
+                (anat_preproc_wf, syn_preprocessing_wf, [
+                    ("outputnode.t2w_preproc", "inputnode.in_anat"),
+                    ("outputnode.t2w_mask", "inputnode.mask_anat"),
+                ]),
+                (create_prior, syn_preprocessing_wf, [('out', 'prior2epi.input_image')]),
+                (fmap_select_std, syn_preprocessing_wf, [
+                    ("std2anat_xfm", "inputnode.std2anat_xfm"),
+                ]),
+                (syn_preprocessing_wf, fmap_wf, [
+                    ("outputnode.epi_ref", f"in_{estimator.bids_id}.epi_ref"),
+                    ("outputnode.epi_mask", f"in_{estimator.bids_id}.epi_mask"),
+                    ("outputnode.anat_ref", f"in_{estimator.bids_id}.anat_ref"),
+                    ("outputnode.anat_mask", f"in_{estimator.bids_id}.anat_mask"),
+                    ("outputnode.sd_prior", f"in_{estimator.bids_id}.sd_prior"),
+                ]),
+            ])
+            for func_preproc_wf in func_preproc_wfs:
+                workflow.connect([
+                    (syn_preprocessing_wf, func_preproc_wf['wf'], [
+                        ("epi_reference_wf.outputnode.epi_ref_file", "inputnode.ref_file"),
+                        ("epi_reference_wf.outputnode.xfm_files", "inputnode.bold_ref_xfm"),
+                        ("epi_reference_wf.outputnode.validation_report",
+                         "inputnode.validation_report"),
+                        (("epi_reference_wf.outputnode.n_dummy", _pop), "inputnode.n_dummy_scans")
+                    ]),
+                ])
+            # fmt:on
     return workflow
 
 
@@ -539,6 +578,56 @@ def _create_atlas_prior(template=None, suffix=None):
     return out
 
 
-def _merge_meta(epi_ref, meta_list):
-    """Prepare a tuple of EPI reference and metadata."""
-    return (epi_ref, meta_list[0])
+def init_reference_workflow(bold_file):
+    # run reference workflow if reference image is not passed
+    from nipype.pipeline import engine as pe
+    from nirodents.workflows.brainextraction import _bspline_grid
+    from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+    from niworkflows.workflows.epi.refmap import init_epi_reference_wf
+    from niworkflows.utils.connections import listify
+    from pathlib import Path
+    from sdcflows.interfaces.brainmask import BrainExtraction
+    from ..patch.utils import extract_entities
+
+    workflow = Workflow(name=f"{Path(bold_file).name.split('.')[0]}_ref_wf")
+    
+    outputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=["ref_file", "bold_ref_xfm", "validation_report", "n_dummy_scans"]),
+        name="outputnode"
+    )
+    
+    echoes = extract_entities(bold_file).get("echo", [])
+    echo_idxs = listify(echoes)
+    multiecho = len(echo_idxs) > 2
+
+    bold_ref_wf = init_epi_reference_wf(
+        auto_bold_nss=True,
+        omp_nthreads=config.nipype.omp_nthreads
+    )
+    bold_ref_wf.inputs.inputnode.in_files = (bold_file if not multiecho else bold_file[0])
+    # set INU bspline grid based on voxel size
+    bspline_grid = _bspline_grid(
+        bold_file if not multiecho else bold_file[0]
+    )
+    bold_ref_wf.inputs.n4_avgs.args = bspline_grid
+    #  The default N4 shrink factor (4) appears to artificially blur values across
+    #  anisotropic voxels. Shrink factors are intended to speed up calculation
+    #  but in most cases, the extra calculation time appears to be minimal.
+    #  Similarly, the use of an asymmetric bspline grid improves performance
+    #  in anisotropic voxels. The number of N4 iterations are also reduced.
+    bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
+    bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
+
+    skullstrip_ref = pe.Node(BrainExtraction(),name="skullstrip_ref")
+    # fmt:off
+    workflow.connect([
+        (bold_ref_wf, skullstrip_ref, [('outputnode.epi_ref_file', 'in_file')]),
+        (skullstrip_ref, outputnode, [(('out_file', 'ref_file'))]),
+        (bold_ref_wf, outputnode,
+            [('outputnode.xfm_files', 'bold_ref_xfm'),
+             ('outputnode.validation_report', 'validation_report'),
+             (('outputnode.n_dummy', _pop), 'n_dummy_scans')])
+    ])
+    # fmt:on
+    return workflow

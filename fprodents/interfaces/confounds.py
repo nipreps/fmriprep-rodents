@@ -320,7 +320,6 @@ class FMRISummaryInputSpec(BaseInterfaceInputSpec):
         mandatory=True,
         desc="input BOLD time-series (4D file) or dense timeseries CIFTI",
     )
-    in_mask = File(exists=True, desc="3D brain mask")
     in_segm = File(exists=True, desc="resampled segmentation")
     confounds_file = File(exists=True, desc="BIDS' _confounds.tsv file")
 
@@ -337,6 +336,7 @@ class FMRISummaryInputSpec(BaseInterfaceInputSpec):
         desc="list of headers to extract from the confounds_file",
     )
     tr = traits.Either(None, traits.Float, usedefault=True, desc="the repetition time")
+    drop_trs = traits.Int(0, usedefault=True, desc="dummy scans")
 
 
 class FMRISummaryOutputSpec(TraitedSpec):
@@ -391,20 +391,15 @@ class FMRISummary(SimpleInterface):
         else:
             data = dataframe[headers]
 
-        colnames = data.columns.ravel().tolist()
-
-        for name, newname in list(names.items()):
-            colnames[colnames.index(name)] = newname
-
-        data.columns = colnames
+        data = data.rename(columns=names)
 
         fig = fMRIPlot(
             self.inputs.in_func,
-            mask_file=self.inputs.in_mask if isdefined(self.inputs.in_mask) else None,
-            seg_file=(self.inputs.in_segm if isdefined(self.inputs.in_segm) else None),
+            segments=(self.inputs.in_segm if isdefined(self.inputs.in_segm) else None),
             tr=self.inputs.tr,
-            data=data,
+            confounds=data,
             units=units,
+            nskip=self.inputs.drop_trs,
         ).plot()
         fig.savefig(self._results["out_file"], bbox_inches="tight")
         return runtime
