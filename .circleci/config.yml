@@ -300,6 +300,7 @@ jobs:
             - nirodents-bold-se-anat-v01-{{ .Branch }}
             - nirodents-bold-se-anat-v01-master
             - nirodents-bold-se-anat-v01-
+      - run: *pull_from_registry
       - run:
           name: Run anatomical workflow on rodents
           no_output_timeout: 2h
