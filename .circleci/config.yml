@@ -56,6 +56,16 @@ jobs:
               echo "Only docs build"
               circleci step halt
             fi
+      - restore_cache:
+          keys:
+            - build-v0-{{ .Branch }}-{{ .Revision }}
+            - build-v0--{{ .Revision }}
+            - build-v0-{{ .Branch }}-
+            - build-v0-master-
+            - build-v0-
+          paths:
+            - /tmp/docker
+            - /tmp/images
       - docker/install-docker-credential-helper
       - run: *docker_auth
       - run: *setup_docker_registry
@@ -275,6 +285,9 @@ jobs:
       - restore_cache:
           keys:
             - build-v0-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/docker
+            - /tmp/images
       - restore_cache:
           keys:
             - data-se-v0-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
