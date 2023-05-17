@@ -365,6 +365,8 @@ workflows:
   build_test_deploy:
     jobs:
       - build:
+          context:
+            - nipreps-common
           filters:
             branches:
               ignore:
