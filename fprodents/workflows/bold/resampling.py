@@ -243,7 +243,6 @@ preprocessed BOLD runs*: {tpl}.
         (split_target, select_std, [('space', 'key')]),
         (select_std, merge_xforms, [('anat2std_xfm', 'in1')]),
         (select_std, mask_merge_tfms, [('anat2std_xfm', 'in1')]),
-        (split_target, gen_ref, [(('spec', _is_native), 'keep_native')]),
         (select_tpl, gen_ref, [('out', 'fixed_image')]),
         (merge_xforms, bold_to_std_transform, [('out', 'transforms')]),
         (gen_ref, bold_to_std_transform, [('out_file', 'reference_image')]),
