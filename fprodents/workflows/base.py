@@ -106,18 +106,16 @@ def init_single_subject_wf(subject_id):
     from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.utils.bids import collect_data
-    from niworkflows.utils.connections import listify
     from niworkflows.utils.spaces import Reference
-    from niworkflows.workflows.epi.refmap import init_epi_reference_wf
     from ..patch.interfaces import BIDSDataGrabber
-    from ..patch.utils import extract_entities, fix_multi_source_name
+    from ..patch.utils import fix_multi_source_name
     from ..patch.workflows.anatomical import init_anat_preproc_wf
 
     subject_data = collect_data(
-        config.execution.layout,
-        subject_id,
-        config.execution.task_id,
-        config.execution.echo_idx,
+        bids_dir=config.execution.layout,
+        participant_label=subject_id,
+        task=config.execution.task_id,
+        echo=config.execution.echo_idx,
         bids_filters=config.execution.bids_filters,
     )[0]
 
@@ -284,48 +282,77 @@ were met (for participant <{subject_id}>, spaces <{', '.join(std_spaces)}>."""
     if anat_only:
         return workflow
 
-    # Append the functional section to the existing anatomical exerpt
-    # That way we do not need to stream down the number of bold datasets
-    anat_preproc_wf.__postdesc__ = (
-        (anat_preproc_wf.__postdesc__ or "")
-        + """
+    from sdcflows import fieldmaps as fm
 
+    fmap_estimators = None
+
+    if any(
+        (
+            "fieldmaps" not in config.workflow.ignore,
+            config.workflow.use_syn_sdc,
+            config.workflow.force_syn,
+        )
+    ):
+        from sdcflows.utils.wrangler import find_estimators
+
+        # SDC Step 1: Run basic heuristics to identify available data for fieldmap estimation
+        # For now, no fmapless
+        filters = None
+        if config.execution.bids_filters is not None:
+            filters = config.execution.bids_filters.get("fmap")
+        fmap_estimators = find_estimators(
+            layout=config.execution.layout,
+            subject=subject_id,
+            fmapless=bool(config.workflow.use_syn_sdc),
+            force_fmapless=config.workflow.force_syn,
+            bids_filters=filters,
+            anat_suffix=["T2w", "T1w", "UNIT1"]
+        )
+
+        if config.workflow.use_syn_sdc and not fmap_estimators:
+            message = (
+                "Fieldmap-less (SyN) estimation was requested, but PhaseEncodingDirection "
+                "information appears to be absent."
+            )
+            config.loggers.workflow.error(message)
+            if config.workflow.use_syn_sdc == "error":
+                raise ValueError(message)
+
+        if "fieldmaps" in config.workflow.ignore and any(
+            f.method == fm.EstimatorType.ANAT for f in fmap_estimators
+        ):
+            config.loggers.workflow.info(
+                'Option "--ignore fieldmaps" was set, but either "--use-syn-sdc" '
+                'or "--force-syn" were given, so fieldmap-less estimation will be executed.'
+            )
+            fmap_estimators = [f for f in fmap_estimators if f.method == fm.EstimatorType.ANAT]
+
+        if fmap_estimators:
+            config.loggers.workflow.info(
+                "B0 field inhomogeneity map will be estimated with "
+                f" the following {len(fmap_estimators)} estimators: "
+                f"{[e.method for e in fmap_estimators]}."
+            )
+
+    # Append the functional section to the existing anatomical excerpt
+    # That way we do not need to stream down the number of bold datasets
+    func_pre_desc = """
 Functional data preprocessing
 
 : For each of the {num_bold} BOLD runs found per subject (across all
 tasks and sessions), the following preprocessing was performed.
 """.format(
-            num_bold=len(subject_data["bold"])
-        )
+        num_bold=len(subject_data['bold'])
     )
 
-    for bold_file in subject_data["bold"]:
-        echoes = extract_entities(bold_file).get("echo", [])
-        echo_idxs = listify(echoes)
-        multiecho = len(echo_idxs) > 2
+    func_preproc_wfs = []
+    has_fieldmap = bool(fmap_estimators)
+    for bold_file in subject_data['bold']:
+        func_preproc_wf = init_func_preproc_wf(bold_file, has_fieldmap=has_fieldmap)
+        if func_preproc_wf is None:
+            continue
 
-        bold_ref_wf = init_epi_reference_wf(
-            auto_bold_nss=True,
-            omp_nthreads=config.nipype.omp_nthreads,
-        )
-        bold_ref_wf.inputs.inputnode.in_files = (
-            bold_file if not multiecho else bold_file[0]
-        )
-        # set INU bspline grid based on voxel size
-        bspline_grid = _bspline_grid(
-            bold_file if not multiecho else bold_file[0]
-        )
-        bold_ref_wf.inputs.n4_avgs.args = bspline_grid
-        #  The default N4 shrink factor (4) appears to artificially blur values across
-        #  anisotropic voxels. Shrink factors are intended to speed up calculation
-        #  but in most cases, the extra calculation time appears to be minimal.
-        #  Similarly, the use of an asymmetric bspline grid improves performance
-        #  in anisotropic voxels. The number of N4 iterations are also reduced.
-        bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
-        bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
-
-        func_preproc_wf = init_func_preproc_wf(bold_file)
-
+        func_preproc_wf.__desc__ = func_pre_desc + (func_preproc_wf.__desc__ or "")
         # fmt:off
         workflow.connect([
             (anat_preproc_wf, func_preproc_wf,
@@ -336,13 +363,282 @@ tasks and sessions), the following preprocessing was performed.
               ('outputnode.template', 'inputnode.template'),
               ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
               ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm')]),
-            (bold_ref_wf, func_preproc_wf,
-             [('outputnode.epi_ref_file', 'inputnode.ref_file'),
-              ('outputnode.xfm_files', 'inputnode.bold_ref_xfm'),
-              ('outputnode.validation_report', 'inputnode.validation_report'),
-              (('outputnode.n_dummy', _pop), 'inputnode.n_dummy_scans')]),
         ])
         # fmt:on
+        func_preproc_wfs.append({'wf': func_preproc_wf, 'bold_file': bold_file})
+
+    if not has_fieldmap:
+        # do reference workflow since it won't otherwise be done
+        for func_preproc_wf in func_preproc_wfs:
+            ref_wf = init_reference_workflow(func_preproc_wf['bold_file'])
+            workflow.connect([
+                (ref_wf, func_preproc_wf['wf'], [
+                    ("outputnode.ref_file", "inputnode.ref_file"),
+                    ("outputnode.bold_ref_xfm", "inputnode.bold_ref_xfm"),
+                    ("outputnode.validation_report", "inputnode.validation_report"),
+                    ("outputnode.n_dummy_scans", "inputnode.n_dummy_scans")
+                ]),
+            ])
+        return workflow
+
+    from sdcflows.workflows.base import init_fmap_preproc_wf
+
+    fmap_wf = init_fmap_preproc_wf(
+        debug=config.execution.debug,
+        estimators=fmap_estimators,
+        omp_nthreads=config.nipype.omp_nthreads,
+        output_dir=output_dir,
+        subject=subject_id,
+    )
+    fmap_wf.__desc__ = f"""
+
+Preprocessing of B<sub>0</sub> inhomogeneity mappings
+
+: A total of {len(fmap_estimators)} fieldmaps were found available within the input
+BIDS structure for this particular subject.
+"""
+
+    for func_preproc_wf in func_preproc_wfs:
+        workflow.connect([
+            (fmap_wf, func_preproc_wf['wf'], [
+                ("outputnode.fmap", "inputnode.fmap"),
+                ("outputnode.fmap_ref", "inputnode.fmap_ref"),
+                ("outputnode.fmap_coeff", "inputnode.fmap_coeff"),
+                ("outputnode.fmap_mask", "inputnode.fmap_mask"),
+                ("outputnode.fmap_id", "inputnode.fmap_id"),
+                ("outputnode.method", "inputnode.sdc_method"),
+            ]),
+        ])
+    # fmt: on
+
+    # Overwrite ``out_path_base`` of sdcflows's DataSinks
+    for node in fmap_wf.list_node_names():
+        if node.split(".")[-1].startswith("ds_"):
+            fmap_wf.get_node(node).interface.out_path_base = "fmriprep"
+
+    # Step 3: Manually connect PEPOLAR and ANAT workflows
+
+    # Select "Fisher344" from standard references.
+    # This node may be used by multiple ANAT estimators, so define outside loop.
+    from niworkflows.interfaces.utility import KeySelect
+
+    fmap_select_std = pe.Node(
+        KeySelect(fields=["std2anat_xfm"], key="Fischer344"),
+        name="fmap_select_std",
+        run_without_submitting=True,
+    )
+    if any(estimator.method == fm.EstimatorType.ANAT for estimator in fmap_estimators):
+        # fmt:off
+        workflow.connect([
+            (anat_preproc_wf, fmap_select_std, [
+                ("outputnode.std2anat_xfm", "std2anat_xfm"),
+                ("outputnode.template", "keys")]),
+        ])
+        # fmt:on
+    else:
+        # connect reference workflow since it won't be done otherwise
+        for func_preproc_wf in func_preproc_wfs:
+            ref_wf = init_reference_workflow(func_preproc_wf['bold_file'])
+            # fmt:off
+            workflow.connect([
+                (ref_wf, func_preproc_wf['wf'], [
+                    ("outputnode.ref_file", "inputnode.ref_file"),
+                    ("outputnode.bold_ref_xfm", "inputnode.bold_ref_xfm"),
+                    ("outputnode.validation_report", "inputnode.validation_report"),
+                    ("outputnode.n_dummy_scans", "inputnode.n_dummy_scans")
+                ]),
+            ])
+            # fmt:on
+
+    for estimator in fmap_estimators:
+        config.loggers.workflow.info(
+            f"""\
+Setting-up fieldmap "{estimator.bids_id}" ({estimator.method}) with \
+<{', '.join(s.path.name for s in estimator.sources)}>"""
+        )
+
+        # Mapped and phasediff can be connected internally by SDCFlows
+        if estimator.method in (fm.EstimatorType.MAPPED, fm.EstimatorType.PHASEDIFF):
+            continue
+
+        suffices = [s.suffix for s in estimator.sources]
+
+        if estimator.method == fm.EstimatorType.PEPOLAR:
+            if set(suffices) == {"epi"} or sorted(suffices) == ["bold", "epi"]:
+                wf_inputs = getattr(fmap_wf.inputs, f"in_{estimator.bids_id}")
+                wf_inputs.in_data = [str(s.path) for s in estimator.sources]
+                wf_inputs.metadata = [s.metadata for s in estimator.sources]
+
+                # add scaling for sub-mm resolution compatibility with topup
+                find_topup_factor = pe.Node(
+                    niu.Function(function=_find_scale_factor),
+                    name="find_topup_factor",
+                    run_without_submitting=True
+                )
+                scale_topup_inputs = pe.Node(
+                    niu.Function(function=_scale_header),
+                    name="scale_topup_inputs"
+                )
+                fix_fieldcoeff_affine = pe.Node(
+                    niu.Function(function=_fix_affine_order),
+                    name="fix_fieldcoeff_affine"
+                )
+                reorient_fieldcoeff = pe.Node(
+                    niu.Function(function=_reorient),
+                    name="reorient_fieldcoeff"
+                )
+                pe_wf = fmap_wf.get_node(f"wf_{estimator.bids_id}")
+                pe_wf.add_nodes([
+                    find_topup_factor,
+                    scale_topup_inputs,
+                    fix_fieldcoeff_affine,
+                    reorient_fieldcoeff
+                ])
+                # if pe dir is IS/SI, need to reorient to LSA for topup
+                # https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=ind1504&L=FSL&D=0&P=277030
+                pe_wf.inputs.to_las.target_orientation = "LSA"
+                # scale smallest zoom to 1mm for compatibility with topup
+                pe_wf.inputs.find_topup_factor.target_size = 1.0
+                # two pass averaging is derailing averaging, so use single-pass instead
+                pe_wf.inputs.setwise_avg.two_pass = False
+                # adjust n4 parameters for surface coils
+                pe_wf.inputs.brainextraction_wf.n4.args = _bspline_grid(estimator.sources[0].path)
+                pe_wf.inputs.brainextraction_wf.n4.n_iterations = [50] * 4
+                pe_wf.inputs.brainextraction_wf.n4.shrink_factor = 1
+                to_las = pe_wf.get_node("to_las")
+                topup = pe_wf.get_node("topup")
+                fix_coeff = pe_wf.get_node("fix_coeff")
+                setwise_avg = pe_wf.get_node("setwise_avg")
+                outputnode = pe_wf.get_node("outputnode")
+                pe_wf.disconnect(to_las, "out_file", topup, "in_file")
+                pe_wf.disconnect(topup, "out_fieldcoef", fix_coeff, "in_coeff")
+                pe_wf.disconnect(fix_coeff, "out_coeff", outputnode, "fmap_coeff")
+                # fmt: off
+                pe_wf.connect([
+                    (to_las, find_topup_factor, [("out_file", "in_file")]),
+                    (to_las, scale_topup_inputs, [("out_file", "in_file")]),
+                    (find_topup_factor, scale_topup_inputs, [("out", "factor")]),
+                    (to_las, fix_fieldcoeff_affine, [("out_file", "reference_image")]),
+                    (scale_topup_inputs, topup, [("out", "in_file")]),
+                    (topup, fix_fieldcoeff_affine, [("out_fieldcoef", "moving_image")]),
+                    (fix_fieldcoeff_affine, fix_coeff, [("out", "in_coeff")]),
+                    (fix_coeff, reorient_fieldcoeff, [("out_coeff", "moving_image")]),
+                    (setwise_avg, reorient_fieldcoeff, [("out_file", "reference_image")]),
+                    (reorient_fieldcoeff, outputnode, [("out", "fmap_coeff")]),
+                ])
+                # fmt: on
+                if config.execution.debug is False:
+                    import nibabel as nb
+                    find_descale_factor = pe.Node(
+                        niu.Function(function=_find_scale_factor),
+                        name="find_descale_factor",
+                        run_without_submitting=True
+                    )
+                    descale_topup_corrected = pe.Node(
+                        niu.Function(function=_scale_header),
+                        name="descale_topup_corrected"
+                    )
+                    descale_topup_field = pe.Node(
+                        niu.Function(function=_scale_header),
+                        name="descale_topup_field"
+                    )
+                    descale_topup_warp = pe.MapNode(
+                        niu.Function(function=_scale_header),
+                        name="descale_topup_warp",
+                        iterfield=['in_file']
+                    )
+                    pe_wf.add_nodes([
+                        find_descale_factor,
+                        descale_topup_corrected,
+                        descale_topup_field,
+                        descale_topup_warp
+                    ])
+                    from_las = pe_wf.get_node("from_las")
+                    from_las_fmap = pe_wf.get_node("from_las_fmap")
+                    pe_wf.inputs.find_descale_factor.target_size = min(
+                        nb.load(
+                            estimator.sources[0].path
+                        ).header.get_zooms()[:3]
+                    )
+                    pe_wf.disconnect(topup, "out_corrected", from_las, "in_file")
+                    pe_wf.disconnect(topup, "out_field", from_las_fmap, "in_file")
+                    pe_wf.disconnect(topup, "out_warps", outputnode, "out_warps")
+                    # fmt: off
+                    pe_wf.connect([
+                        (topup, find_descale_factor, [("out_corrected", "in_file")]),
+                        (find_descale_factor, descale_topup_corrected, [("out", "factor")]),
+                        (topup, descale_topup_corrected, [("out_corrected", "in_file")]),
+                        (descale_topup_corrected, from_las, [("out", "in_file")]),
+                        (find_descale_factor, descale_topup_field, [("out", "factor")]),
+                        (topup, descale_topup_field, [("out_field", "in_file")]),
+                        (descale_topup_field, from_las_fmap, [("out", "in_file")]),
+                        (find_descale_factor, descale_topup_warp, [("out", "factor")]),
+                        (topup, descale_topup_warp, [("out_warps", "in_file")]),
+                        (descale_topup_warp, outputnode, [("out", "out_warps")]),
+                    ])
+                    # fmt: on
+            else:
+                raise NotImplementedError("Sophisticated PEPOLAR schemes are unsupported.")
+
+        elif estimator.method == fm.EstimatorType.ANAT:
+            from sdcflows.workflows.fit.syn import init_syn_preprocessing_wf
+
+            sources = [str(s.path) for s in estimator.sources if s.suffix == "bold"]
+            source_meta = [s.metadata for s in estimator.sources if s.suffix == "bold"]
+            syn_preprocessing_wf = init_syn_preprocessing_wf(
+                omp_nthreads=config.nipype.omp_nthreads,
+                debug=config.execution.debug is True,
+                auto_bold_nss=True,
+                t1w_inversion=False,
+                name=f"syn_preprocessing_{estimator.bids_id}",
+            )
+            syn_preprocessing_wf.inputs.inputnode.in_epis = sources
+            syn_preprocessing_wf.inputs.inputnode.in_meta = source_meta
+
+            #  The default N4 shrink factor (4) appears to artificially blur values across
+            #  anisotropic voxels. Shrink factors are intended to speed up calculation
+            #  but in most cases, the extra calculation time appears to be minimal.
+            syn_preprocessing_wf.inputs.epi_reference_wf.n4_avgs.shrink_factor = 1
+            #  Similarly, the use of an asymmetric bspline grid improves performance
+            #  in anisotropic voxels, so set INU bspline grid based on voxel size
+            syn_preprocessing_wf.inputs.epi_reference_wf.n4_avgs.args = _bspline_grid(sources[0])
+            # The number of N4 iterations are also reduced.
+            syn_preprocessing_wf.inputs.epi_reference_wf.n4_avgs.n_iterations = [50] * 4
+
+            # Select "Fischer344" from standard references.
+            create_prior = pe.Node(niu.Function(function=_create_atlas_prior), name="create_prior")
+            create_prior.inputs.template = 'Fischer344'
+            create_prior.inputs.suffix = 'T2w'
+
+            # fmt:off
+            workflow.connect([
+                (anat_preproc_wf, syn_preprocessing_wf, [
+                    ("outputnode.t2w_preproc", "inputnode.in_anat"),
+                    ("outputnode.t2w_mask", "inputnode.mask_anat"),
+                ]),
+                (create_prior, syn_preprocessing_wf, [('out', 'prior2epi.input_image')]),
+                (fmap_select_std, syn_preprocessing_wf, [
+                    ("std2anat_xfm", "inputnode.std2anat_xfm"),
+                ]),
+                (syn_preprocessing_wf, fmap_wf, [
+                    ("outputnode.epi_ref", f"in_{estimator.bids_id}.epi_ref"),
+                    ("outputnode.epi_mask", f"in_{estimator.bids_id}.epi_mask"),
+                    ("outputnode.anat_ref", f"in_{estimator.bids_id}.anat_ref"),
+                    ("outputnode.anat_mask", f"in_{estimator.bids_id}.anat_mask"),
+                    ("outputnode.sd_prior", f"in_{estimator.bids_id}.sd_prior"),
+                ]),
+            ])
+            for func_preproc_wf in func_preproc_wfs:
+                workflow.connect([
+                    (syn_preprocessing_wf, func_preproc_wf['wf'], [
+                        ("epi_reference_wf.outputnode.epi_ref_file", "inputnode.ref_file"),
+                        ("epi_reference_wf.outputnode.xfm_files", "inputnode.bold_ref_xfm"),
+                        ("epi_reference_wf.outputnode.validation_report",
+                         "inputnode.validation_report"),
+                        (("epi_reference_wf.outputnode.n_dummy", _pop), "inputnode.n_dummy_scans")
+                    ]),
+                ])
+            # fmt:on
     return workflow
 
 
@@ -354,3 +650,196 @@ def _pop(inlist):
     if isinstance(inlist, (list, tuple)):
         return inlist[0]
     return inlist
+
+
+def _create_atlas_prior(template=None, suffix=None):
+    from templateflow.api import get
+    import nibabel as nb
+    import numpy as np
+    from pathlib import Path
+    from nipype.utils.filemanip import fname_presuffix
+
+    if template is None:
+        template = 'Fischer344'
+    if suffix is None:
+        suffix = 'T2w'
+
+    tpl_path = get(template, suffix=suffix)
+    tpl_img = nb.load(tpl_path)
+    tpl_data = tpl_img.get_fdata()
+    new_data = np.ones_like(tpl_data) * 4
+
+    out = fname_presuffix(Path(tpl_path).name, suffix="_sdcprior", newpath=Path.cwd())
+    hdr = tpl_img.header.copy()
+    hdr.set_data_dtype("uint8")
+    tpl_img.__class__(new_data.astype("uint8"), tpl_img.affine, hdr).to_filename(out)
+
+    return out
+
+
+def init_reference_workflow(bold_file):
+    # run reference workflow if reference image is not passed
+    from nipype.pipeline import engine as pe
+    from nirodents.workflows.brainextraction import _bspline_grid
+    from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+    from niworkflows.workflows.epi.refmap import init_epi_reference_wf
+    from niworkflows.utils.connections import listify
+    from pathlib import Path
+    from ..patch.utils import extract_entities
+
+    workflow = Workflow(name=f"{Path(bold_file).name.split('.')[0]}_ref_wf")
+
+    outputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=["ref_file", "bold_ref_xfm", "validation_report", "n_dummy_scans"]),
+        name="outputnode"
+    )
+
+    echoes = extract_entities(bold_file).get("echo", [])
+    echo_idxs = listify(echoes)
+    multiecho = len(echo_idxs) > 2
+
+    bold_ref_wf = init_epi_reference_wf(
+        auto_bold_nss=True,
+        omp_nthreads=config.nipype.omp_nthreads
+    )
+    bold_ref_wf.inputs.inputnode.in_files = (bold_file if not multiecho else bold_file[0])
+    # set INU bspline grid based on voxel size
+    bspline_grid = _bspline_grid(
+        bold_file if not multiecho else bold_file[0]
+    )
+    bold_ref_wf.inputs.n4_avgs.args = bspline_grid
+    #  The default N4 shrink factor (4) appears to artificially blur values across
+    #  anisotropic voxels. Shrink factors are intended to speed up calculation
+    #  but in most cases, the extra calculation time appears to be minimal.
+    #  Similarly, the use of an asymmetric bspline grid improves performance
+    #  in anisotropic voxels. The number of N4 iterations are also reduced.
+    bold_ref_wf.inputs.n4_avgs.shrink_factor = 1
+    bold_ref_wf.inputs.n4_avgs.n_iterations = [50] * 4
+
+    # fmt:off
+    workflow.connect([
+        (bold_ref_wf, outputnode,
+            [('outputnode.epi_ref_file', 'ref_file'),
+             ('outputnode.xfm_files', 'bold_ref_xfm'),
+             ('outputnode.validation_report', 'validation_report'),
+             (('outputnode.n_dummy', _pop), 'n_dummy_scans')])
+    ])
+    # fmt:on
+    return workflow
+
+
+def _find_scale_factor(in_file, target_size=1.0):
+    import nibabel as nb
+
+    zooms = nb.load(in_file).header.get_zooms()[:3]
+    out = target_size / min(zooms)
+
+    return out
+
+
+def _scale_header(in_file, factor=0.1):
+    from pathlib import Path
+    import nibabel as nb
+    from nipype.utils.filemanip import fname_presuffix
+
+    fname = Path(in_file)
+    img = nb.load(in_file)
+
+    # first update header zooms
+    new_hdr = img.header.copy()
+    orig_zooms = img.header.get_zooms()
+    zoom_lim = len(orig_zooms) if len(orig_zooms) <= 3 else 3
+    new_zooms = [float(zoom * factor) for zoom in orig_zooms[0:zoom_lim]]
+
+    if len(orig_zooms) > 3:
+        new_zooms = [
+            element for sublist in
+            [new_zooms, list(new_hdr.get_zooms()[3:])]
+            for element in sublist
+        ]
+    new_hdr.set_zooms(tuple(new_zooms))
+
+    # next update affine
+    new_affine = img.affine.copy()
+    new_affine[:3] *= factor
+
+    out = fname_presuffix(fname.name, suffix="_scaled", newpath=Path.cwd())
+    img.__class__(img.dataobj, new_affine, new_hdr).to_filename(out)
+
+    return out
+
+
+def _fix_affine_order(reference_image, moving_image):
+    from pathlib import Path
+    import nibabel as nb
+    from numpy import moveaxis, flip
+    from nipype.utils.filemanip import fname_presuffix
+
+    ref = nb.load(reference_image)
+    moving = nb.load(moving_image)
+
+    ref_axis_order = nb.io_orientation(ref.affine)[:,0]
+    moving_axis_order = nb.io_orientation(moving.affine)[:,0]
+
+    # change the order of the rows based on the reference affine
+    reindex = [list(ref_axis_order).index(val) for val in moving_axis_order]
+
+    new_affine = moving.affine.copy()
+    new_affine[:3,:] = moving.affine[reindex,:]
+
+    # reorient to LAS as expected by sdcflows
+    las_ornt = nb.orientations.ornt_transform(
+        nb.io_orientation(new_affine),
+        nb.orientations.axcodes2ornt("LAS")
+    )
+    moving_las = moving.as_reoriented(las_ornt)
+
+    # reorder data matrix
+    new_data = moveaxis(
+        moving.get_fdata(),
+        moving_axis_order.astype(int),
+        ref_axis_order.astype(int)
+    )
+    flip_required = las_ornt[:,1] < 1
+    if flip_required.any():
+        new_data = flip(
+            new_data,
+            tuple([idx for idx, _ in enumerate(las_ornt[:,1]) if flip_required[idx]])
+        )
+
+    out = fname_presuffix(moving_image, newpath=Path.cwd())
+
+    final_image = moving_las.__class__(
+        new_data,
+        moving_las.affine,
+        moving.header
+    )
+    final_image.header.set_zooms(
+        tuple([moving.header.get_zooms()[val] for val in reindex])
+    )
+    final_image.to_filename(out)
+
+    return out
+
+
+def _reorient(reference_image, moving_image):
+    from pathlib import Path
+    import nibabel as nb
+    from nipype.utils.filemanip import fname_presuffix
+
+    ref = nb.load(reference_image)
+    moving = nb.load(moving_image)
+
+    new_affine = moving.affine.copy()
+
+    # reorient to RAS
+    reorient = nb.orientations.ornt_transform(
+        nb.orientations.io_orientation(new_affine),
+        nb.orientations.io_orientation(ref.affine)
+    )
+
+    out = fname_presuffix(moving_image, newpath=Path.cwd())
+    moving.as_reoriented(reorient).to_filename(out)
+
+    return out

@@ -287,7 +287,10 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
 
     # 1. Anatomical reference generation - average input T1w images.
     anat_template_wf = init_anat_template_wf(
-        longitudinal=longitudinal, omp_nthreads=omp_nthreads, num_t1w=num_t2w
+        longitudinal=longitudinal,
+        omp_nthreads=omp_nthreads,
+        num_files=num_t2w,
+        contrast="T2w"
     )
 
     anat_validate = pe.Node(
@@ -338,15 +341,15 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     # fmt:off
     workflow.connect([
         # Step 1.
-        (inputnode, anat_template_wf, [('t2w', 'inputnode.t1w')]),
+        (inputnode, anat_template_wf, [('t2w', 'inputnode.anat_files')]),
         (anat_template_wf, anat_validate, [
-            ('outputnode.t1w_ref', 'in_file')]),
+            ('outputnode.anat_ref', 'in_file')]),
         (anat_validate, brain_extraction_wf, [
             ('out_file', 'inputnode.in_files')]),
         (brain_extraction_wf, outputnode, [
             (('outputnode.out_corrected', _pop), 't2w_preproc')]),
         (anat_template_wf, outputnode, [
-            ('outputnode.t1w_realign_xfm', 't2w_ref_xfms')]),
+            ('outputnode.anat_realign_xfm', 't2w_ref_xfms')]),
         (buffernode, outputnode, [('t2w_brain', 't2w_brain'),
                                   ('t2w_mask', 't2w_mask')]),
         # Steps 2 and 3
@@ -389,7 +392,7 @@ the brain-extracted T1w using `fast` [FSL {fsl_ver}, RRID:SCR_002823,
     workflow.connect([
         # Connect derivatives
         (anat_template_wf, anat_derivatives_wf, [
-            ('outputnode.t1w_valid_list', 'inputnode.source_files')]),
+            ('outputnode.anat_valid_list', 'inputnode.source_files')]),
         (anat_norm_wf, anat_derivatives_wf, [
             ('outputnode.template', 'inputnode.template'),
             ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),

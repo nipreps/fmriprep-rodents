@@ -12,6 +12,7 @@ Handling confounds.
 import os
 import re
 import shutil
+import nibabel as nb
 import numpy as np
 import pandas as pd
 from nipype import logging
@@ -25,6 +26,8 @@ from nipype.interfaces.base import (
     isdefined,
     SimpleInterface,
 )
+from niworkflows.utils.timeseries import _nifti_timeseries
+from niworkflows.viz.plots import fMRIPlot
 
 LOGGER = logging.getLogger("nipype.interface")
 
@@ -315,28 +318,20 @@ def _get_ica_confounds(ica_out_dir, skip_vols, newpath=None):
 
 
 class FMRISummaryInputSpec(BaseInterfaceInputSpec):
-    in_func = File(
-        exists=True,
-        mandatory=True,
-        desc="input BOLD time-series (4D file) or dense timeseries CIFTI",
-    )
-    in_mask = File(exists=True, desc="3D brain mask")
-    in_segm = File(exists=True, desc="resampled segmentation")
+    in_nifti = File(exists=True, mandatory=True, desc="input BOLD (4D NIfTI file)")
+    in_segm = File(exists=True, desc="volumetric segmentation corresponding to in_nifti")
     confounds_file = File(exists=True, desc="BIDS' _confounds.tsv file")
 
     str_or_tuple = traits.Either(
         traits.Str,
         traits.Tuple(traits.Str, traits.Either(None, traits.Str)),
-        traits.Tuple(
-            traits.Str, traits.Either(None, traits.Str), traits.Either(None, traits.Str)
-        ),
+        traits.Tuple(traits.Str, traits.Either(None, traits.Str), traits.Either(None, traits.Str)),
     )
     confounds_list = traits.List(
-        str_or_tuple,
-        minlen=1,
-        desc="list of headers to extract from the confounds_file",
+        str_or_tuple, minlen=1, desc='list of headers to extract from the confounds_file'
     )
     tr = traits.Either(None, traits.Float, usedefault=True, desc="the repetition time")
+    drop_trs = traits.Int(0, usedefault=True, desc="dummy scans")
 
 
 class FMRISummaryOutputSpec(TraitedSpec):
@@ -352,22 +347,26 @@ class FMRISummary(SimpleInterface):
     output_spec = FMRISummaryOutputSpec
 
     def _run_interface(self, runtime):
-        from niworkflows.viz.plots import fMRIPlot
+        self._results['out_file'] = fname_presuffix(
+            self.inputs.in_nifti, suffix='_fmriplot.svg', use_ext=False, newpath=runtime.cwd
+        )
 
-        self._results["out_file"] = fname_presuffix(
-            self.inputs.in_func,
-            suffix="_fmriplot.svg",
-            use_ext=False,
-            newpath=runtime.cwd,
+        # Read input object and create timeseries + segments object
+        seg_file = self.inputs.in_segm if isdefined(self.inputs.in_segm) else None
+        dataset, segments = _nifti_timeseries(
+            nb.load(self.inputs.in_nifti),
+            nb.load(seg_file),
+            remap_rois=False,
+            labels=(("GM", "WM", "CSF", "other")),
         )
 
         dataframe = pd.read_csv(
             self.inputs.confounds_file,
             sep="\t",
             index_col=None,
-            dtype="float32",
+            dtype='float32',
             na_filter=True,
-            na_values="n/a",
+            na_values='n/a',
         )
 
         headers = []
@@ -391,20 +390,16 @@ class FMRISummary(SimpleInterface):
         else:
             data = dataframe[headers]
 
-        colnames = data.columns.ravel().tolist()
-
-        for name, newname in list(names.items()):
-            colnames[colnames.index(name)] = newname
-
-        data.columns = colnames
+        data = data.rename(columns=names)
 
         fig = fMRIPlot(
-            self.inputs.in_func,
-            mask_file=self.inputs.in_mask if isdefined(self.inputs.in_mask) else None,
-            seg_file=(self.inputs.in_segm if isdefined(self.inputs.in_segm) else None),
+            dataset,
+            segments=segments,
             tr=self.inputs.tr,
-            data=data,
+            confounds=data,
             units=units,
+            nskip=self.inputs.drop_trs,
+            paired_carpet=False,
         ).plot()
         fig.savefig(self._results["out_file"], bbox_inches="tight")
         return runtime
