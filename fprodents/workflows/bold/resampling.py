@@ -14,7 +14,6 @@ from ...config import DEFAULT_MEMORY_MIN_GB
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype.interfaces.fsl import Split as FSLSplit
-import nipype.interfaces.workbench as wb
 
 
 def init_bold_std_trans_wf(
@@ -116,6 +115,7 @@ def init_bold_std_trans_wf(
     from niworkflows.interfaces.nibabel import GenerateSamplingReference
     from niworkflows.interfaces.nilearn import Merge
     from niworkflows.utils.spaces import format_reference
+    from ...patch.workflows.func import init_bold_reference_wf
 
     workflow = Workflow(name=name)
     output_references = spaces.cached.get_spaces(nonstandard=False, dim=(3,))
@@ -225,7 +225,7 @@ preprocessed BOLD runs*: {tpl}.
     )
 
     merge = pe.Node(Merge(compress=use_compression), name="merge", mem_gb=mem_gb * 3)
-
+    gen_final_ref = init_bold_reference_wf(omp_nthreads=omp_nthreads, pre_mask=True)
     # fmt:off
     workflow.connect([
         (iterablesource, split_target, [('std_target', 'in_target')]),
@@ -243,15 +243,16 @@ preprocessed BOLD runs*: {tpl}.
         (split_target, select_std, [('space', 'key')]),
         (select_std, merge_xforms, [('anat2std_xfm', 'in1')]),
         (select_std, mask_merge_tfms, [('anat2std_xfm', 'in1')]),
-        (split_target, gen_ref, [(('spec', _is_native), 'keep_native')]),
         (select_tpl, gen_ref, [('out', 'fixed_image')]),
         (merge_xforms, bold_to_std_transform, [('out', 'transforms')]),
         (gen_ref, bold_to_std_transform, [('out_file', 'reference_image')]),
         (gen_ref, mask_std_tfm, [('out_file', 'reference_image')]),
         (mask_merge_tfms, mask_std_tfm, [('out', 'transforms')]),
+        (mask_std_tfm, gen_final_ref, [("output_image", "inputnode.bold_mask")]),
         (gen_ref, ref_std_tfm, [('out_file', 'reference_image')]),
         (mask_merge_tfms, ref_std_tfm, [('out', 'transforms')]),
         (bold_to_std_transform, merge, [('out_files', 'in_files')]),
+        (merge, gen_final_ref, [("out_file", "inputnode.bold_file")]),
     ])
     # fmt:on
 
@@ -272,7 +273,7 @@ preprocessed BOLD runs*: {tpl}.
         (iterablesource, poutputnode, [
             (('std_target', format_reference), 'spatial_reference')]),
         (merge, poutputnode, [('out_file', 'bold_std')]),
-        (ref_std_tfm, poutputnode, [('output_image', 'bold_std_ref')]),
+        (gen_final_ref, poutputnode, [('outputnode.ref_image', 'bold_std_ref')]),
         (mask_std_tfm, poutputnode, [('output_image', 'bold_mask_std')]),
         (select_std, poutputnode, [('key', 'template')]),
     ])
@@ -424,198 +425,6 @@ the transforms to correct for head-motion"""
         ])
         # fmt:on
 
-    return workflow
-
-
-def init_bold_grayords_wf(
-    grayord_density, mem_gb, repetition_time, name="bold_grayords_wf"
-):
-    """
-    Sample Grayordinates files onto the fsLR atlas.
-
-    Outputs are in CIFTI2 format.
-
-    Workflow Graph
-        .. workflow::
-            :graph2use: colored
-            :simple_form: yes
-
-            from fprodents.workflows.bold.resampling import init_bold_grayords_wf
-            wf = init_bold_grayords_wf(mem_gb=0.1, grayord_density='91k')
-
-    Parameters
-    ----------
-    grayord_density : :obj:`str`
-        Either `91k` or `170k`, representing the total of vertices or *grayordinates*.
-    mem_gb : :obj:`float`
-        Size of BOLD file in GB
-    name : :obj:`str`
-        Unique name for the subworkflow (default: ``'bold_grayords_wf'``)
-
-    Inputs
-    ------
-    bold_std : :obj:`str`
-        List of BOLD conversions to standard spaces.
-    spatial_reference :obj:`str`
-        List of unique identifiers corresponding to the BOLD standard-conversions.
-    subjects_dir : :obj:`str`
-        FreeSurfer's subjects directory.
-    surf_files : :obj:`str`
-        List of BOLD files resampled on the fsaverage (ico7) surfaces.
-    surf_refs :
-        List of unique identifiers corresponding to the BOLD surface-conversions.
-
-    Outputs
-    -------
-    cifti_bold : :obj:`str`
-        List of BOLD grayordinates files - (L)eft and (R)ight.
-    cifti_variant : :obj:`str`
-        Only ``'HCP Grayordinates'`` is currently supported.
-    cifti_metadata : :obj:`str`
-        Path of metadata files corresponding to ``cifti_bold``.
-    cifti_density : :obj:`str`
-        Density (i.e., either `91k` or `170k`) of ``cifti_bold``.
-
-    """
-    import templateflow.api as tf
-    from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.cifti import GenerateCifti
-    from niworkflows.interfaces.utility import KeySelect
-
-    workflow = Workflow(name=name)
-    workflow.__desc__ = """\
-*Grayordinates* files [@hcppipelines] containing {density} samples were also
-generated using the highest-resolution ``fsaverage`` as intermediate standardized
-surface space.
-""".format(
-        density=grayord_density
-    )
-
-    fslr_density, mni_density = (
-        ("32k", "2") if grayord_density == "91k" else ("59k", "1")
-    )
-
-    inputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=[
-                "bold_std",
-                "spatial_reference",
-                "subjects_dir",
-                "surf_files",
-                "surf_refs",
-            ]
-        ),
-        name="inputnode",
-    )
-
-    outputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=["cifti_bold", "cifti_variant", "cifti_metadata", "cifti_density"]
-        ),
-        name="outputnode",
-    )
-
-    # extract out to BOLD base
-    select_std = pe.Node(
-        KeySelect(fields=["bold_std"]),
-        name="select_std",
-        run_without_submitting=True,
-        nohash=True,
-    )
-    select_std.inputs.key = "MNI152NLin6Asym_res-%s" % mni_density
-
-    select_fs_surf = pe.Node(
-        KeySelect(fields=["surf_files"]),
-        name="select_fs_surf",
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-    select_fs_surf.inputs.key = "fsaverage"
-
-    # Setup Workbench command. LR ordering for hemi can be assumed, as it is imposed
-    # by the iterfield of the MapNode in the surface sampling workflow above.
-    resample = pe.MapNode(
-        wb.MetricResample(method="ADAP_BARY_AREA", area_metrics=True),
-        name="resample",
-        iterfield=[
-            "in_file",
-            "out_file",
-            "new_sphere",
-            "new_area",
-            "current_sphere",
-            "current_area",
-        ],
-    )
-    resample.inputs.current_sphere = [
-        str(tf.get("fsaverage", hemi=hemi, density="164k", desc="std", suffix="sphere"))
-        for hemi in "LR"
-    ]
-    resample.inputs.current_area = [
-        str(
-            tf.get(
-                "fsaverage",
-                hemi=hemi,
-                density="164k",
-                desc="vaavg",
-                suffix="midthickness",
-            )
-        )
-        for hemi in "LR"
-    ]
-    resample.inputs.new_sphere = [
-        str(
-            tf.get(
-                "fsLR",
-                space="fsaverage",
-                hemi=hemi,
-                density=fslr_density,
-                suffix="sphere",
-            )
-        )
-        for hemi in "LR"
-    ]
-    resample.inputs.new_area = [
-        str(
-            tf.get(
-                "fsLR",
-                hemi=hemi,
-                density=fslr_density,
-                desc="vaavg",
-                suffix="midthickness",
-            )
-        )
-        for hemi in "LR"
-    ]
-    resample.inputs.out_file = [
-        "space-fsLR_hemi-%s_den-%s_bold.gii" % (h, grayord_density) for h in "LR"
-    ]
-
-    gen_cifti = pe.Node(
-        GenerateCifti(
-            volume_target="MNI152NLin6Asym",
-            surface_target="fsLR",
-            TR=repetition_time,
-            surface_density=fslr_density,
-        ),
-        name="gen_cifti",
-    )
-
-    # fmt:off
-    workflow.connect([
-        (inputnode, gen_cifti, [('subjects_dir', 'subjects_dir')]),
-        (inputnode, select_std, [('bold_std', 'bold_std'),
-                                 ('spatial_reference', 'keys')]),
-        (inputnode, select_fs_surf, [('surf_files', 'surf_files'),
-                                     ('surf_refs', 'keys')]),
-        (select_fs_surf, resample, [('surf_files', 'in_file')]),
-        (select_std, gen_cifti, [('bold_std', 'bold_file')]),
-        (resample, gen_cifti, [('out_file', 'surface_bolds')]),
-        (gen_cifti, outputnode, [('out_file', 'cifti_bold'),
-                                 ('variant', 'cifti_variant'),
-                                 ('out_metadata', 'cifti_metadata'),
-                                 ('density', 'cifti_density')]),
-    ])
-    # fmt:on
     return workflow
 
 

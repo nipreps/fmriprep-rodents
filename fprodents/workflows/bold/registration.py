@@ -11,7 +11,7 @@ Registration workflows
 from ... import config
 
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu, fsl, c3
+from nipype.interfaces import utility as niu
 
 from ...interfaces import DerivativesDataSink
 
@@ -82,16 +82,19 @@ def init_bold_reg_wf(
         Reportlet for assessing registration quality
 
     """
+    from nipype.interfaces.ants.base import Info as ANTsInfo
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.reportlets.registration import FLIRTRPT
+    from niworkflows.interfaces.fixes import FixHeaderRegistration as Registration
+    from niworkflows.interfaces.reportlets.registration import SimpleBeforeAfterRPT
+    from pkg_resources import resource_filename as _pkg_fname
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
 The BOLD reference was then co-registered to the T2w reference using
-`flirt` [FSL {fsl_ver}, @flirt].
+`ANTs` [FSL {ants_ver}, @ants].
 Co-registration was configured with six degrees of freedom.
 """.format(
-        fsl_ver=FLIRTRPT().version or "<ver>"
+        ants_ver=ANTsInfo.version() or "(version unknown)"
     )
     inputnode = pe.Node(
         niu.IdentityInterface(fields=["ref_bold_brain", "t1w_brain"]), name="inputnode"
@@ -105,52 +108,28 @@ Co-registration was configured with six degrees of freedom.
     )
 
     coreg = pe.Node(
-        FLIRTRPT(
-            dof=bold2t1w_dof,
-            generate_report=True,
-            uses_qform=True,
-            args="-basescale 1"),
-        name="coreg")
-
-    if bold2t1w_init not in ("register", "header"):
-        raise ValueError(f"Unknown BOLD-T1w initialization option: {bold2t1w_init}")
-
-    if bold2t1w_init == "header":
-        raise NotImplementedError(
-            "Header-based registration initialization not supported for FSL"
-        )
-
-    invt_xfm = pe.Node(
-        fsl.ConvertXFM(invert_xfm=True), name="invt_xfm", mem_gb=DEFAULT_MEMORY_MIN_GB
+        Registration(
+            initial_moving_transform_com=1,
+            output_warped_image=True,
+            from_file=_pkg_fname("fprodents", "data/translation_rigid.json"),
+        ),
+        name="coreg",
+        n_procs=omp_nthreads,
     )
 
-    # BOLD to T1 transform matrix is from fsl, using c3 tools to convert to
-    # something ANTs will like.
-    fsl2itk_fwd = pe.Node(
-        c3.C3dAffineTool(fsl2ras=True, itk_transform=True),
-        name="fsl2itk_fwd",
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-    fsl2itk_inv = pe.Node(
-        c3.C3dAffineTool(fsl2ras=True, itk_transform=True),
-        name="fsl2itk_inv",
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    coreg_rpt = pe.Node(
+        SimpleBeforeAfterRPT(before_label='anat', after_label='coreg'), name='coreg_rpt'
     )
 
     # fmt:off
     workflow.connect([
-        (inputnode, coreg, [('ref_bold_brain', 'in_file'),
-                            ('t1w_brain', 'reference')]),
-        (coreg, invt_xfm, [('out_matrix_file', 'in_file')]),
-        (coreg, fsl2itk_fwd, [('out_matrix_file', 'transform_file')]),
-        (coreg, outputnode, [('out_report', 'out_report')]),
-        (inputnode, fsl2itk_fwd, [('t1w_brain', 'reference_file'),
-                                  ('ref_bold_brain', 'source_file')]),
-        (inputnode, fsl2itk_inv, [('ref_bold_brain', 'reference_file'),
-                                  ('t1w_brain', 'source_file')]),
-        (invt_xfm, fsl2itk_inv, [('out_file', 'transform_file')]),
-        (fsl2itk_fwd, outputnode, [('itk_transform', 'bold2anat')]),
-        (fsl2itk_inv, outputnode, [('itk_transform', 'anat2bold')]),
+        (inputnode, coreg, [('ref_bold_brain', 'moving_image'),
+                            ('t1w_brain', 'fixed_image')]),
+        (inputnode, coreg_rpt, [('t1w_brain', 'before')]),
+        (coreg, coreg_rpt, [("warped_image", "after")]),
+        (coreg_rpt, outputnode, [('out_report', 'out_report')]),
+        (coreg, outputnode, [('composite_transform', 'bold2anat')]),
+        (coreg, outputnode, [('inverse_composite_transform', 'anat2bold')]),
     ])
     # fmt:on
 
